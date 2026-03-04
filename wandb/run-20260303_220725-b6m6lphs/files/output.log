@@ -1,0 +1,333 @@
+################################################################################
+                      [1m Learning iteration 0/10001 [0m
+
+                       Computation: 41571 steps/s (collection: 2.249s, learning 0.116s)
+             Mean action noise std: 1.00
+          Mean value_function loss: 0.0671
+               Mean surrogate loss: 0.0042
+                 Mean entropy loss: 17.0040
+                       Mean reward: 0.73
+               Mean episode length: 15.38
+         Episode_Reward/clf_reward: 0.0246
+Episode_Reward/clf_decreasing_condition: -0.0061
+Episode_Reward/holonomic_constraint: 0.0185
+Episode_Reward/holonomic_constraint_vel: 0.0024
+   Episode_Reward/joint_torques_l2: -0.0004
+   Episode_Reward/joint_pos_limits: -0.0002
+     Episode_Reward/action_rate_l2: -0.0029
+    Episode_Reward/self_collisions: -0.0006
+               Metrics/hlip/v_mean: 100.7071
+      Episode_Termination/time_out: 3.4583
+     Episode_Termination/fell_over: 1.0417
+--------------------------------------------------------------------------------
+                   Total timesteps: 98304
+                    Iteration time: 2.36s
+                      Time elapsed: 00:00:02
+                               ETA: 06:34:09
+[34m[1mwandb[0m: [33mWARNING[0m Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+[34m[1mwandb[0m: [33mWARNING[0m Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+Storing git diff for 'Physics-Based-Walker' in: logs/rsl_rl/g1_hlip_clf/2026-03-03_22-07-22/git/Physics-Based-Walker.diff
+[34m[1mwandb[0m: [33mWARNING[0m Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+################################################################################
+                      [1m Learning iteration 1/10001 [0m
+
+                       Computation: 126798 steps/s (collection: 0.715s, learning 0.060s)
+             Mean action noise std: 0.99
+          Mean value_function loss: 0.0390
+               Mean surrogate loss: -0.0091
+                 Mean entropy loss: 16.9267
+                       Mean reward: 1.08
+               Mean episode length: 47.62
+         Episode_Reward/clf_reward: 0.0356
+Episode_Reward/clf_decreasing_condition: -0.0194
+Episode_Reward/holonomic_constraint: 0.0428
+Episode_Reward/holonomic_constraint_vel: 0.0032
+   Episode_Reward/joint_torques_l2: -0.0012
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0087
+    Episode_Reward/self_collisions: -0.0042
+               Metrics/hlip/v_mean: 252.5222
+      Episode_Termination/time_out: 2.6667
+     Episode_Termination/fell_over: 140.1250
+--------------------------------------------------------------------------------
+                   Total timesteps: 196608
+                    Iteration time: 0.78s
+                      Time elapsed: 00:00:03
+                               ETA: 04:21:39
+
+################################################################################
+                      [1m Learning iteration 2/10001 [0m
+
+                       Computation: 126105 steps/s (collection: 0.721s, learning 0.058s)
+             Mean action noise std: 0.98
+          Mean value_function loss: 0.0342
+               Mean surrogate loss: -0.0127
+                 Mean entropy loss: 16.8015
+                       Mean reward: 1.04
+               Mean episode length: 36.58
+         Episode_Reward/clf_reward: 0.0392
+Episode_Reward/clf_decreasing_condition: -0.0238
+Episode_Reward/holonomic_constraint: 0.0515
+Episode_Reward/holonomic_constraint_vel: 0.0035
+   Episode_Reward/joint_torques_l2: -0.0014
+   Episode_Reward/joint_pos_limits: -0.0009
+     Episode_Reward/action_rate_l2: -0.0102
+    Episode_Reward/self_collisions: -0.0037
+               Metrics/hlip/v_mean: 267.2634
+      Episode_Termination/time_out: 0.2083
+     Episode_Termination/fell_over: 74.0833
+--------------------------------------------------------------------------------
+                   Total timesteps: 294912
+                    Iteration time: 0.78s
+                      Time elapsed: 00:00:03
+                               ETA: 03:37:43
+
+################################################################################
+                      [1m Learning iteration 3/10001 [0m
+
+                       Computation: 125429 steps/s (collection: 0.725s, learning 0.059s)
+             Mean action noise std: 0.97
+          Mean value_function loss: 0.0367
+               Mean surrogate loss: -0.0137
+                 Mean entropy loss: 16.6607
+                       Mean reward: 1.25
+               Mean episode length: 40.81
+         Episode_Reward/clf_reward: 0.0397
+Episode_Reward/clf_decreasing_condition: -0.0240
+Episode_Reward/holonomic_constraint: 0.0547
+Episode_Reward/holonomic_constraint_vel: 0.0035
+   Episode_Reward/joint_torques_l2: -0.0014
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0099
+    Episode_Reward/self_collisions: -0.0028
+               Metrics/hlip/v_mean: 256.8332
+      Episode_Termination/time_out: 0.0833
+     Episode_Termination/fell_over: 105.5833
+--------------------------------------------------------------------------------
+                   Total timesteps: 393216
+                    Iteration time: 0.78s
+                      Time elapsed: 00:00:04
+                               ETA: 03:15:55
+
+################################################################################
+                      [1m Learning iteration 4/10001 [0m
+
+                       Computation: 124623 steps/s (collection: 0.729s, learning 0.059s)
+             Mean action noise std: 0.95
+          Mean value_function loss: 0.0358
+               Mean surrogate loss: -0.0133
+                 Mean entropy loss: 16.5192
+                       Mean reward: 1.40
+               Mean episode length: 43.14
+         Episode_Reward/clf_reward: 0.0416
+Episode_Reward/clf_decreasing_condition: -0.0233
+Episode_Reward/holonomic_constraint: 0.0582
+Episode_Reward/holonomic_constraint_vel: 0.0035
+   Episode_Reward/joint_torques_l2: -0.0013
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0095
+    Episode_Reward/self_collisions: -0.0017
+               Metrics/hlip/v_mean: 249.7605
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 98.2917
+--------------------------------------------------------------------------------
+                   Total timesteps: 491520
+                    Iteration time: 0.79s
+                      Time elapsed: 00:00:05
+                               ETA: 03:03:00
+
+################################################################################
+                      [1m Learning iteration 5/10001 [0m
+
+                       Computation: 125426 steps/s (collection: 0.725s, learning 0.059s)
+             Mean action noise std: 0.95
+          Mean value_function loss: 0.0373
+               Mean surrogate loss: -0.0126
+                 Mean entropy loss: 16.4006
+                       Mean reward: 1.63
+               Mean episode length: 42.22
+         Episode_Reward/clf_reward: 0.0454
+Episode_Reward/clf_decreasing_condition: -0.0248
+Episode_Reward/holonomic_constraint: 0.0655
+Episode_Reward/holonomic_constraint_vel: 0.0037
+   Episode_Reward/joint_torques_l2: -0.0014
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0100
+    Episode_Reward/self_collisions: -0.0013
+               Metrics/hlip/v_mean: 237.5422
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 89.9583
+--------------------------------------------------------------------------------
+                   Total timesteps: 589824
+                    Iteration time: 0.78s
+                      Time elapsed: 00:00:06
+                               ETA: 02:54:15
+
+################################################################################
+                      [1m Learning iteration 6/10001 [0m
+
+                       Computation: 123403 steps/s (collection: 0.737s, learning 0.059s)
+             Mean action noise std: 0.94
+          Mean value_function loss: 0.0397
+               Mean surrogate loss: -0.0129
+                 Mean entropy loss: 16.2834
+                       Mean reward: 1.77
+               Mean episode length: 44.34
+         Episode_Reward/clf_reward: 0.0482
+Episode_Reward/clf_decreasing_condition: -0.0250
+Episode_Reward/holonomic_constraint: 0.0694
+Episode_Reward/holonomic_constraint_vel: 0.0038
+   Episode_Reward/joint_torques_l2: -0.0014
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0099
+    Episode_Reward/self_collisions: -0.0008
+               Metrics/hlip/v_mean: 224.5516
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 91.5000
+--------------------------------------------------------------------------------
+                   Total timesteps: 688128
+                    Iteration time: 0.80s
+                      Time elapsed: 00:00:07
+                               ETA: 02:48:18
+
+################################################################################
+                      [1m Learning iteration 7/10001 [0m
+
+                       Computation: 124490 steps/s (collection: 0.730s, learning 0.059s)
+             Mean action noise std: 0.93
+          Mean value_function loss: 0.0433
+               Mean surrogate loss: -0.0122
+                 Mean entropy loss: 16.1493
+                       Mean reward: 1.94
+               Mean episode length: 44.27
+         Episode_Reward/clf_reward: 0.0508
+Episode_Reward/clf_decreasing_condition: -0.0255
+Episode_Reward/holonomic_constraint: 0.0747
+Episode_Reward/holonomic_constraint_vel: 0.0039
+   Episode_Reward/joint_torques_l2: -0.0014
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0101
+    Episode_Reward/self_collisions: -0.0008
+               Metrics/hlip/v_mean: 223.3354
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 88.7083
+--------------------------------------------------------------------------------
+                   Total timesteps: 786432
+                    Iteration time: 0.79s
+                      Time elapsed: 00:00:07
+                               ETA: 02:43:41
+
+################################################################################
+                      [1m Learning iteration 8/10001 [0m
+
+                       Computation: 124463 steps/s (collection: 0.731s, learning 0.058s)
+             Mean action noise std: 0.92
+          Mean value_function loss: 0.0488
+               Mean surrogate loss: -0.0124
+                 Mean entropy loss: 16.0455
+                       Mean reward: 2.04
+               Mean episode length: 45.27
+         Episode_Reward/clf_reward: 0.0552
+Episode_Reward/clf_decreasing_condition: -0.0266
+Episode_Reward/holonomic_constraint: 0.0815
+Episode_Reward/holonomic_constraint_vel: 0.0041
+   Episode_Reward/joint_torques_l2: -0.0015
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0105
+    Episode_Reward/self_collisions: -0.0005
+               Metrics/hlip/v_mean: 216.1730
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 79.2083
+--------------------------------------------------------------------------------
+                   Total timesteps: 884736
+                    Iteration time: 0.79s
+                      Time elapsed: 00:00:08
+                               ETA: 02:40:06
+
+################################################################################
+                      [1m Learning iteration 9/10001 [0m
+
+                       Computation: 124411 steps/s (collection: 0.731s, learning 0.060s)
+             Mean action noise std: 0.91
+          Mean value_function loss: 0.0512
+               Mean surrogate loss: -0.0120
+                 Mean entropy loss: 15.9393
+                       Mean reward: 2.37
+               Mean episode length: 52.73
+         Episode_Reward/clf_reward: 0.0590
+Episode_Reward/clf_decreasing_condition: -0.0277
+Episode_Reward/holonomic_constraint: 0.0879
+Episode_Reward/holonomic_constraint_vel: 0.0042
+   Episode_Reward/joint_torques_l2: -0.0016
+   Episode_Reward/joint_pos_limits: -0.0008
+     Episode_Reward/action_rate_l2: -0.0108
+    Episode_Reward/self_collisions: -0.0005
+               Metrics/hlip/v_mean: 213.8274
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 82.7083
+--------------------------------------------------------------------------------
+                   Total timesteps: 983040
+                    Iteration time: 0.79s
+                      Time elapsed: 00:00:09
+                               ETA: 02:37:14
+
+################################################################################
+                     [1m Learning iteration 10/10001 [0m
+
+                       Computation: 124247 steps/s (collection: 0.732s, learning 0.060s)
+             Mean action noise std: 0.90
+          Mean value_function loss: 0.0561
+               Mean surrogate loss: -0.0124
+                 Mean entropy loss: 15.7997
+                       Mean reward: 2.70
+               Mean episode length: 55.58
+         Episode_Reward/clf_reward: 0.0622
+Episode_Reward/clf_decreasing_condition: -0.0285
+Episode_Reward/holonomic_constraint: 0.0947
+Episode_Reward/holonomic_constraint_vel: 0.0044
+   Episode_Reward/joint_torques_l2: -0.0016
+   Episode_Reward/joint_pos_limits: -0.0007
+     Episode_Reward/action_rate_l2: -0.0110
+    Episode_Reward/self_collisions: -0.0003
+               Metrics/hlip/v_mean: 209.8694
+      Episode_Termination/time_out: 0.0000
+     Episode_Termination/fell_over: 77.7083
+--------------------------------------------------------------------------------
+                   Total timesteps: 1081344
+                    Iteration time: 0.79s
+                      Time elapsed: 00:00:10
+                               ETA: 02:34:54
+Traceback (most recent call last):
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/bin/train", line 10, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/scripts/train.py", line 249, in main
+    launch_training(task_id=chosen_task, args=args)
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/scripts/train.py", line 200, in launch_training
+    run_train(task_id, args, log_dir)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/scripts/train.py", line 170, in run_train
+    runner.learn(
+    ~~~~~~~~~~~~^
+      num_learning_iterations=cfg.agent.max_iterations, init_at_random_ep_len=True
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/rsl_rl/runners/on_policy_runner.py", line 105, in learn
+    obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
+                                  ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/rl/vecenv_wrapper.py", line 77, in step
+    obs_dict, rew, terminated, truncated, extras = self.env.step(actions)
+                                                   ~~~~~~~~~~~~~^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/envs/manager_based_rl_env.py", line 339, in step
+    self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/.venv/lib/python3.13/site-packages/mjlab/managers/reward_manager.py", line 124, in compute
+    value = term_cfg.func(self._env, **term_cfg.params) * term_cfg.weight * scale
+            ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codrincrismariu/Documents/Physics-Based-Walker/src/pure_mjlab_code/mdp/rewards.py", line 206, in holonomic_constraint
+    cmd.stance_idx.unsqueeze(1).unsqueeze(2).expand(-1, 1, 4),
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^
+KeyboardInterrupt
