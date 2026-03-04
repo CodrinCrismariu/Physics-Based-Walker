@@ -1,6 +1,7 @@
 """Unitree G1 HLIP + CLF walking environment configurations."""
 
 import re
+from dataclasses import replace
 
 from mjlab.asset_zoo.robots import (
   G1_ACTION_SCALE,
@@ -8,8 +9,13 @@ from mjlab.asset_zoo.robots import (
 )
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.curriculum_manager import CurriculumTermCfg
+from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.sensor import ContactMatch, ContactSensorCfg
+from mjlab.terrains import BoxRandomGridTerrainCfg
+from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
+from mjlab.terrains import TerrainImporterCfg
 from pure_mjlab_code import mdp
 from pure_mjlab_code.hlip_env_cfg import make_hlip_env_cfg
 
@@ -78,5 +84,69 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
     cfg.episode_length_s = int(1e9)
     cfg.observations["policy"].enable_corruption = False
     cfg.events.pop("push_robot", None)
+
+  return cfg
+
+
+# ---------------------------------------------------------------------------
+# Stepping-stone terrain
+# ---------------------------------------------------------------------------
+
+STEPPING_STONE_TERRAINS_CFG = TerrainGeneratorCfg(
+  size=(8.0, 8.0),
+  border_width=20.0,
+  num_rows=10,
+  num_cols=20,
+  sub_terrains={
+    "stepping_stones": BoxRandomGridTerrainCfg(
+      proportion=1.0,
+      grid_width=0.4,
+      grid_height_range=(0.0, 0.12),
+      platform_width=2.0,
+      holes=True,
+    ),
+  },
+  add_lights=True,
+)
+
+
+def unitree_g1_hlip_stepping_stone_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(STEPPING_STONE_TERRAINS_CFG),
+    max_init_terrain_level=5,
+  )
+  cfg.scene.terrain.terrain_generator.curriculum = True
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
+
+  # ── Curriculum ───────────────────────────────────────────────────────
+  cfg.curriculum["terrain_levels"] = CurriculumTermCfg(
+    func=mdp.terrain_levels_hlip,
+    params={"command_name": "hlip"},
+  )
+
+  # ── Play-mode overrides ─────────────────────────────────────────────
+  if play:
+    cfg.events["randomize_terrain"] = EventTermCfg(
+      func=mdp.randomize_terrain,
+      mode="reset",
+      params={},
+    )
+    if cfg.scene.terrain.terrain_generator is not None:
+      cfg.scene.terrain.terrain_generator.curriculum = False
+      cfg.scene.terrain.terrain_generator.num_cols = 5
+      cfg.scene.terrain.terrain_generator.num_rows = 5
+      cfg.scene.terrain.terrain_generator.border_width = 10.0
+    cfg.curriculum.pop("terrain_levels", None)
 
   return cfg

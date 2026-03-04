@@ -47,6 +47,50 @@ def commands_hlip(
   return {}
 
 
+def terrain_levels_hlip(
+  env: ManagerBasedRlEnv,
+  env_ids: torch.Tensor,
+  command_name: str,
+) -> torch.Tensor:
+  """Terrain difficulty curriculum for the HLIP walking task.
+
+  Robots that walk far enough from their spawn are promoted to harder
+  terrain rows; robots that fail to cover sufficient distance are
+  demoted to easier rows.
+  """
+  from mjlab.managers.scene_entity_config import SceneEntityCfg
+
+  asset = env.scene[SceneEntityCfg("robot").name]
+
+  terrain = env.scene.terrain
+  assert terrain is not None
+  terrain_generator = terrain.cfg.terrain_generator
+  assert terrain_generator is not None
+
+  command = env.command_manager.get_command(command_name)
+  assert command is not None
+
+  # Distance walked from spawn origin.
+  distance = torch.norm(
+    asset.data.root_link_pos_w[env_ids, :2] - env.scene.env_origins[env_ids, :2],
+    dim=1,
+  )
+
+  # Walked far enough → promote to harder terrain.
+  move_up = distance > terrain_generator.size[0] / 2
+
+  # Walked less than half of expected distance → demote.
+  move_down = (
+    distance
+    < torch.norm(command[env_ids, :2], dim=1) * env.max_episode_length_s * 0.5
+  )
+  move_down *= ~move_up
+
+  terrain.update_env_origins(env_ids, move_up, move_down)
+
+  return torch.mean(terrain.terrain_levels.float())
+
+
 def clf_curriculum(
   env: ManagerBasedRlEnv,
   env_ids: torch.Tensor,
