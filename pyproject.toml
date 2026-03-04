@@ -1,5 +1,5 @@
 [project]
-name = "pure-mjlab-code"
+name = "hlip-clf-g1"
 version = "0.1.0"
 description = "HLIP + CLF walking task for mjlab"
 readme = "README.md"
@@ -8,16 +8,19 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "mjlab>=1.0.0",
+    "mjlab>=1.1.0",
     "scipy",
 ]
 
 [project.scripts]
-pure-mjlab-code = "pure_mjlab_code:main"
+hlip-clf-g1 = "hlip_clf_g1:main"
 
 [project.entry-points."mjlab.tasks"]
-pure_mjlab_code = "pure_mjlab_code"
+hlip_clf_g1 = "hlip_clf_g1"
 
 [build-system]
 requires = ["uv_build>=0.10.6,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+mjlab = { git = "https://github.com/mujocolab/mjlab" }
