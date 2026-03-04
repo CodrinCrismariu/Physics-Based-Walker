@@ -84,7 +84,25 @@ State_RLBase::State_RLBase(int state_mode, std::string state_string)
 void State_RLBase::run()
 {
     auto action = env->action_manager->processed_actions();
-    for(int i(0); i < env->robot->data.joint_ids_map.size(); i++) {
-        lowcmd->msg_.motor_cmd()[env->robot->data.joint_ids_map[i]].q() = action[i];
+    auto& joint_ids_map = env->robot->data.joint_ids_map;
+
+    // Check if action cfg uses joint_ids for partial joint control (e.g. HLIP)
+    auto actions_cfg = env->cfg["actions"];
+    for(auto it = actions_cfg.begin(); it != actions_cfg.end(); ++it) {
+        if(!it->second["joint_ids"].IsNull()) {
+            auto action_joint_ids = it->second["joint_ids"].as<std::vector<int>>();
+            for(size_t i = 0; i < action_joint_ids.size() && i < action.size(); i++) {
+                int jid = action_joint_ids[i];
+                if(jid < (int)joint_ids_map.size()) {
+                    lowcmd->msg_.motor_cmd()[(int)joint_ids_map[jid]].q() = action[i];
+                }
+            }
+            return;
+        }
+    }
+
+    // Default: all joints controlled (backward compatible)
+    for(size_t i = 0; i < joint_ids_map.size() && i < action.size(); i++) {
+        lowcmd->msg_.motor_cmd()[(int)joint_ids_map[i]].q() = action[i];
     }
 }

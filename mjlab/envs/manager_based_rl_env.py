@@ -336,6 +336,11 @@ class ManagerBasedRlEnv:
     self.reset_terminated = self.termination_manager.terminated
     self.reset_time_outs = self.termination_manager.time_outs
 
+    # Compute commands BEFORE rewards so that reward terms
+    # (e.g. CLF value V) see the current step's state, not stale data
+    # from the previous step.
+    self.command_manager.compute(dt=self.step_dt)
+
     self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
     # Reset envs that terminated/timed-out and log the episode info.
@@ -344,8 +349,6 @@ class ManagerBasedRlEnv:
       self._reset_idx(reset_env_ids)
       self.scene.write_data_to_sim()
       self.sim.forward()
-
-    self.command_manager.compute(dt=self.step_dt)
 
     if "interval" in self.event_manager.available_modes:
       self.event_manager.apply(mode="interval", dt=self.step_dt)

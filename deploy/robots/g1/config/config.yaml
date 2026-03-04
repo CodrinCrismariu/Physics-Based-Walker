@@ -7,6 +7,9 @@ FSM:
     Velocity:
       id: 3
       type: RLBase
+    HLIP:
+      id: 4
+      type: RLBase
 
     Mimic_Dance1_subject2:
       id: 5
@@ -36,6 +39,7 @@ FSM:
     transitions: 
       Passive: LT + B.on_pressed
       Velocity: RT + A.on_pressed
+      HLIP: RT + Y.on_pressed
 
     kp: [
       100,100,100,150,40,40,
@@ -69,6 +73,13 @@ FSM:
       Mimic_Dance1_subject2: RB + A.on_pressed
 
     policy_dir: config/policy/velocity
+
+
+  HLIP:
+    transitions:
+      Passive: LT + B.on_pressed
+
+    policy_dir: config/policy/hlip
 
 
   Mimic_Dance1_subject2:

@@ -1,0 +1,111 @@
+# ─── HLIP + CLF Walking Task ─── Unitree G1 29-dof ───
+#
+# Policy observations (81-dim):
+#   base_ang_vel(3) + projected_gravity(3) + velocity_commands(3)
+#   + joint_pos_rel(29) + joint_vel_rel(29) + last_action(12) + gait_phase(2)
+#
+# Policy actions (12-dim):
+#   Joint position targets for: hip (6×2), knee (2), ankle (4)
+#   Upper body + waist (yaw/roll/pitch) are locked at default positions via PD control.
+#
+# Gait: half-period 0.4 s → full period 0.8 s
+# Step dt: 0.005 s × 4 (decimation) = 0.02 s
+
+joint_ids_map: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]
+step_dt: 0.02
+
+# ─── PD gains (indexed by joint_ids_map) ───
+#  0: left_hip_pitch    (7520_14)    6: right_hip_pitch   (7520_14)   12: waist_yaw   (7520_14)
+#  1: left_hip_roll     (7520_22)    7: right_hip_roll    (7520_22)   13: waist_roll  (WAIST)
+#  2: left_hip_yaw      (7520_14)    8: right_hip_yaw     (7520_14)   14: waist_pitch (WAIST)
+#  3: left_knee          (7520_22)    9: right_knee         (7520_22)   15-21: left arm
+#  4: left_ankle_pitch  (ANKLE)     10: right_ankle_pitch (ANKLE)     22-28: right arm
+#  5: left_ankle_roll   (ANKLE)     11: right_ankle_roll  (ANKLE)
+stiffness: [40.2, 99.1, 40.2, 99.1, 28.5, 28.5,
+            40.2, 99.1, 40.2, 99.1, 28.5, 28.5,
+            40.2, 28.5, 28.5,
+            14.3, 14.3, 14.3, 14.3, 14.3, 16.8, 16.8,
+            14.3, 14.3, 14.3, 14.3, 14.3, 16.8, 16.8]
+damping:   [2.6, 6.3, 2.6, 6.3, 1.8, 1.8,
+            2.6, 6.3, 2.6, 6.3, 1.8, 1.8,
+            2.6, 1.8, 1.8,
+            0.9, 0.9, 0.9, 0.9, 0.9, 1.1, 1.1,
+            0.9, 0.9, 0.9, 0.9, 0.9, 1.1, 1.1]
+
+default_joint_pos: [-0.1,0,0,0.3,-0.2,0,
+                    -0.1,0,0,0.3,-0.2,0,
+                     0,0,0,
+                     0.35, 0.18,0,0.87,0,0,0,
+                     0.35,-0.18,0,0.87,0,0,0]
+
+# ─── Locked joints ───
+# Joints held at default position by PD (not controlled by RL policy).
+# joint_ids are indices into joint_ids_map.
+locked_joints:
+  joint_ids: [12,13,14, 15,16,17,18,19,20,21, 22,23,24,25,26,27,28]
+  targets:   [ 0, 0, 0, 0.35,0.18,0,0.87,0,0,0, 0.35,-0.18,0,0.87,0,0,0]
+
+# ─── Commands ───
+commands:
+  base_velocity:
+    ranges:
+      lin_vel_x: [-1.0, 1.0]
+      lin_vel_y: [-0.2, 0.2]
+      ang_vel_z: [-1.0, 1.0]
+      heading: null
+
+# ─── Actions (12-dim, lower body only) ───
+# joint_ids: indices into joint_ids_map for the 12 RL-controlled joints.
+# Skips index 12-14 (waist yaw/roll/pitch — locked).
+actions:
+  JointPositionAction:
+    clip: null
+    joint_ids: [0,1,2,3,4,5,6,7,8,9,10,11]
+    scale:  [0.55, 0.35, 0.55, 0.35, 0.44, 0.44,
+             0.55, 0.35, 0.55, 0.35, 0.44, 0.44]
+    offset: [-0.1, 0, 0, 0.3, -0.2, 0,
+             -0.1, 0, 0, 0.3, -0.2, 0]
+
+# ─── Observations (83-dim) ───
+observations:
+  base_ang_vel:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 1
+  projected_gravity:
+    params: {}
+    clip: null
+    scale: [1.0, 1.0, 1.0]
+    history_length: 1
+  velocity_commands:
+    params: { command_name: base_velocity }
+    clip: null
+    scale: [2.0, 2.0, 2.0]
+    history_length: 1
+  joint_pos_rel:
+    params: {}
+    clip: null
+    scale: [1.0,1.0,1.0,1.0,1.0,1.0, 1.0,1.0,1.0,1.0,1.0,1.0,
+            1.0,1.0,1.0,
+            1.0,1.0,1.0,1.0,1.0,1.0,1.0,
+            1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+    history_length: 1
+  joint_vel_rel:
+    params: {}
+    clip: null
+    scale: [0.05,0.05,0.05,0.05,0.05,0.05, 0.05,0.05,0.05,0.05,0.05,0.05,
+            0.05,0.05,0.05,
+            0.05,0.05,0.05,0.05,0.05,0.05,0.05,
+            0.05,0.05,0.05,0.05,0.05,0.05,0.05]
+    history_length: 1
+  last_action:
+    params: {}
+    clip: null
+    scale: [1.0,1.0,1.0,1.0,1.0,1.0, 1.0,1.0,1.0,1.0,1.0,1.0]
+    history_length: 1
+  gait_phase:
+    params: { period: 0.8 }
+    clip: null
+    scale: [1.0, 1.0]
+    history_length: 1
