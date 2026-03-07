@@ -242,26 +242,43 @@ class HLIP(torch.nn.Module):
     device = vel.device
     batch = vel.shape[0]
 
-    if self.A_s2s is None:
-      self._compute_s2s_matrices()
-    assert self.A_s2s is not None and self.B_s2s is not None
-    A_s2s = self.A_s2s.to(device)
-    B_s2s = self.B_s2s.to(device)
+    # Use analytical formulas for batched exp_ss and exp_ds
+    lam = self.lambda_
+    T_ss = T - self.T_ds
+    
+    cosh_t = torch.cosh(lam * T_ss)
+    sinh_t = torch.sinh(lam * T_ss)
 
-    # Use scalar T if tensor, otherwise use first element.
-    T_scalar = T if isinstance(T, (int, float)) else T[0].item()
-    U_des_p1 = vel[:, 0] * T_scalar
+    A_exp_ss = torch.zeros(batch, 2, 2, device=device)
+    A_exp_ss[:, 0, 0] = cosh_t
+    A_exp_ss[:, 0, 1] = sinh_t / lam
+    A_exp_ss[:, 1, 0] = lam * sinh_t
+    A_exp_ss[:, 1, 1] = cosh_t
+
+    if self.T_ds > 0:
+      A_exp_ds = torch.zeros(batch, 2, 2, device=device)
+      A_exp_ds[:, 0, 0] = 1.0
+      A_exp_ds[:, 0, 1] = self.T_ds
+      A_exp_ds[:, 1, 1] = 1.0
+      A_s2s = torch.bmm(A_exp_ss, A_exp_ds)
+    else:
+      A_s2s = A_exp_ss
+
+    B_usw = self.B_usw.to(device)
+    B_s2s = torch.matmul(A_exp_ss, B_usw)
+
+    U_des_p1 = vel[:, 0] * T
 
     eye = torch.eye(2, device=device).unsqueeze(0).expand(batch, -1, -1)
     X_des_p1 = torch.linalg.solve(
       eye - A_s2s, B_s2s * U_des_p1.unsqueeze(-1)
     ).squeeze(-1)
 
-    U_left = vel[:, 1] * T_scalar - self.y_nom
-    U_right = vel[:, 1] * T_scalar + self.y_nom
+    U_left = vel[:, 1] * T - self.y_nom
+    U_right = vel[:, 1] * T + self.y_nom
 
-    A_squared = A_s2s @ A_s2s
-    B_term = A_s2s @ B_s2s
+    A_squared = torch.bmm(A_s2s, A_s2s)
+    B_term = torch.bmm(A_s2s, B_s2s.unsqueeze(-1)).squeeze(-1)
 
     Y_left = torch.linalg.solve(
       eye - A_squared,

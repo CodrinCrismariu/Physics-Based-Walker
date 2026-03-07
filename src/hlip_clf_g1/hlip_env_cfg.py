@@ -28,6 +28,7 @@ from mjlab.sim import MujocoCfg, SimulationCfg
 from hlip_clf_g1 import mdp
 from hlip_clf_g1.mdp.hlip_command import HLIPCommandCfg
 from hlip_clf_g1.mdp.joint_lock_action import JointLockActionCfg
+from hlip_clf_g1.mdp.upright_waist_action import UprightWaistActionCfg
 from mjlab.terrains import TerrainImporterCfg
 from mjlab.utils.noise import UniformNoiseCfg as Unoise
 from mjlab.viewer import ViewerConfig
@@ -190,8 +191,13 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       entity_name="robot",
       joint_names=(
         ".*_shoulder_.*", ".*_elbow_.*", ".*_wrist_.*",
-        "waist_yaw_.*", "waist_roll_.*", "waist_pitch_.*",
+        "waist_yaw_.*",
       ),
+    ),
+    "upright_waist": UprightWaistActionCfg(
+      entity_name="robot",
+      pitch_joint_names=("waist_pitch_.*",),
+      roll_joint_names=("waist_roll_.*",),
     ),
   }
 
@@ -206,7 +212,8 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       foot_body_name=r".*_ankle_roll_link",
       z0=0.67,
       y_nom=0.25,
-      gait_half_period=0.4,
+      T_min=0.3,
+      T_max=0.7,
       T_ds=0.0,
       z_sw_max=0.1,
       z_sw_min=0.0,
@@ -218,9 +225,9 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       rel_standing_envs=0.05,
       debug_vis=True,
       ranges=HLIPCommandCfg.Ranges(
-        lin_vel_x=(-1.0, 1.0),
+        lin_vel_x=(-0.7, 0.7),
         lin_vel_y=(-0.2, 0.2),
-        ang_vel_z=(-1.0, 1.0),
+        ang_vel_z=(-0.5, 0.5),
       ),
     ),
   }

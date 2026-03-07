@@ -119,7 +119,9 @@ class HLIPCommandTerm(CommandTerm):
     self.T_ds = cfg.T_ds
     self.z0 = cfg.z0
     self.y_nom = cfg.y_nom
-    self.T = cfg.gait_half_period
+    self.T_min = getattr(cfg, "T_min", getattr(cfg, "gait_half_period", 0.4))
+    self.T_max = getattr(cfg, "T_max", getattr(cfg, "gait_half_period", 0.4))
+    self.T = torch.empty(self.num_envs, device=self.device).uniform_(self.T_min, self.T_max)
 
     # Resolve foot body indices.
     self._foot_body_ids, _ = self.robot.find_bodies(cfg.foot_body_name)
@@ -159,7 +161,7 @@ class HLIPCommandTerm(CommandTerm):
       grav=GRAVITY,
       z0=self.z0,
       T_ds=self.T_ds,
-      T=self.T,
+      T=self.T_min,
       y_nom=self.y_nom,
       device=self.device,
     )
@@ -266,15 +268,10 @@ class HLIPCommandTerm(CommandTerm):
 
   def _update_stance_swing_idx(self, dt: float) -> None:
     """Update per-env stance/swing indices and phase variables."""
-    T_swing = self.T - self.T_ds
 
-    # Advance gait time.
-    self.gait_time += dt
-    # Wrap to [0, full_gait_period).
-    self.gait_time = torch.fmod(self.gait_time, self.full_gait_period)
-
-    # Normalised phase [0, 1).
-    self.tp = self.gait_time / self.full_gait_period
+    # Advance normalised phase
+    self.tp += dt / self.full_gait_period
+    self.tp = torch.fmod(self.tp, 1.0)
 
     # Determine stance side from phase.
     # tp < 0.5 → stance_idx=0 (left), tp >= 0.5 → stance_idx=1 (right).
@@ -286,6 +283,11 @@ class HLIPCommandTerm(CommandTerm):
     trans_ids = transitioned.nonzero(as_tuple=False).flatten()
 
     if len(trans_ids) > 0:
+      # --- Sample new step time ---
+      self.T[trans_ids] = torch.empty(len(trans_ids), device=self.device).uniform_(self.T_min, self.T_max)
+      self.full_gait_period[trans_ids] = 2.0 * (self.T[trans_ids] - self.T_ds)
+      # ----------------------------
+
       # Record stance foot pose at transition.
       foot_pos_w = self.robot.data.body_link_pos_w[
         :, self._foot_body_ids, :
@@ -323,6 +325,9 @@ class HLIPCommandTerm(CommandTerm):
       2.0 * self.tp,
       2.0 * self.tp - 1.0,
     )
+
+    self.gait_time = self.tp * self.full_gait_period
+    T_swing = self.T - self.T_ds
     self.cur_swing_time = self.phase_var * T_swing
 
   # ------------------------------------------------------------------
@@ -454,7 +459,7 @@ class HLIPCommandTerm(CommandTerm):
     ref = amp * sign * torch.sin(phase.unsqueeze(-1) + offset_expanded) + joint_offset
 
     dphase_dt = 2 * math.pi / self.full_gait_period
-    ref_dot = amp * sign * torch.cos(phase.unsqueeze(-1) + offset_expanded) * dphase_dt
+    ref_dot = amp * sign * torch.cos(phase.unsqueeze(-1) + offset_expanded) * dphase_dt.unsqueeze(-1)
 
     return ref, ref_dot
 
@@ -463,7 +468,7 @@ class HLIPCommandTerm(CommandTerm):
     base_velocity = self.vel_command
     N = base_velocity.shape[0]
 
-    T_tensor = torch.full((N,), self.T, device=self.device)
+    T_tensor = self.T
 
     Xdes, Ux, Ydes, Uy = self.hlip_controller.compute_orbit(
       T=T_tensor, cmd=base_velocity
@@ -525,7 +530,7 @@ class HLIPCommandTerm(CommandTerm):
     horizontal_cp = torch.tensor(
       [0.0, 0.0, 1.0, 1.0, 1.0], device=self.device
     ).unsqueeze(0).expand(N, -1)
-    T_tensor_sw = torch.full((N,), self.T, device=self.device)
+    T_tensor_sw = self.T
 
     bht = bezier_deg(0, self.phase_var, T_tensor_sw, horizontal_cp, 4)
 
@@ -718,7 +723,9 @@ class HLIPCommandTerm(CommandTerm):
     if len(standing) > 0:
       self.vel_command[standing] = 0.0
 
-    # Reset gait phase.
+    # Reset gait phase and resample T.
+    self.T[env_ids] = r.uniform_(self.T_min, self.T_max)
+    self.full_gait_period[env_ids] = 2.0 * (self.T[env_ids] - self.T_ds)
     self.gait_time[env_ids] = 0.0
 
     # Start with left foot as stance (stance_idx=0).
@@ -969,8 +976,11 @@ class HLIPCommandCfg(CommandTermCfg):
   y_nom: float = 0.25
   """Nominal lateral foot separation [m]."""
 
-  gait_half_period: float = 0.4
-  """Half of the full gait period [s]. Full stride = 2 * gait_half_period."""
+  T_min: float = 0.4
+  """Minimum half of the full gait period [s]. Full stride = 2 * T_min."""
+
+  T_max: float = 0.4
+  """Maximum half of the full gait period [s]. Full stride = 2 * T_max."""
 
   # Swing trajectory.
   z_sw_max: float = 0.1
