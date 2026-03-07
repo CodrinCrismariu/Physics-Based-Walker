@@ -12,7 +12,8 @@ class LIPOnPolicyRunner(MjlabOnPolicyRunner):
   def save(self, path: str, infos=None):
     """Save the model, export ONNX, and attach metadata."""
     super().save(path, infos)
-    if self.logger_type in ["wandb"]:
+
+    if self.logger in ["wandb"]:
       policy_path = path.split("model")[0]
       filename = "policy.onnx"
       self.export_policy_to_onnx(path=policy_path, filename=filename)

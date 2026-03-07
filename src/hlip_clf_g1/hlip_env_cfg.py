@@ -159,7 +159,7 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
   }
 
   observations = {
-    "policy": ObservationGroupCfg(
+    "actor": ObservationGroupCfg(
       terms=policy_terms,
       concatenate_terms=True,
       enable_corruption=True,
