@@ -928,6 +928,57 @@ class HLIPCommandTerm(CommandTerm):
         label="vel_cmd",
       )
 
+    # Heightmap rendering with edge detection
+    if "heightmap" in self._env.scene.sensors:
+      hm_data = self._env.scene.sensors["heightmap"].data
+      if hm_data.hit_pos_w is not None:
+        hm_res = self._env.scene.sensors["heightmap"].cfg.pattern.resolution
+        
+        hit_pos_w_b = hm_data.hit_pos_w[batch]
+        dists_b = hm_data.distances[batch].cpu().numpy()
+        hit_pos_b = hit_pos_w_b.cpu().numpy()
+        
+        num_hits = hit_pos_b.shape[0]
+        # Calculate grid size dynamically assuming square/rectangular layout
+        size_x, size_y = self._env.scene.sensors["heightmap"].cfg.pattern.size
+        # Get grid sizes from pattern bounds length
+        num_x = len(np.arange(-size_x / 2, size_x / 2 + hm_res * 0.5, hm_res))
+        num_y = len(np.arange(-size_y / 2, size_y / 2 + hm_res * 0.5, hm_res))
+
+        if num_x * num_y == num_hits:
+          dist_grid = dists_b.reshape(num_y, num_x)
+          hit_grid = hit_pos_b.reshape(num_y, num_x, 3)
+          
+          import math
+          thresh = hm_res * math.tan(math.radians(20))
+          z = hit_grid[..., 2]
+          
+          z_pad = np.pad(z, ((1,1), (1,1)), constant_values=np.inf)
+          d_pad = np.pad(dist_grid, ((1,1), (1,1)), constant_values=-1.0)
+          
+          z_up = z_pad[:-2, 1:-1]
+          z_down = z_pad[2:, 1:-1]
+          z_left = z_pad[1:-1, :-2]
+          z_right = z_pad[1:-1, 2:]
+          
+          d_up = d_pad[:-2, 1:-1]
+          d_down = d_pad[2:, 1:-1]
+          d_left = d_pad[1:-1, :-2]
+          d_right = d_pad[1:-1, 2:]
+      
+          c_up = (d_up >= 0) & (np.abs(z - z_up) < thresh)
+          c_down = (d_down >= 0) & (np.abs(z - z_down) < thresh)
+          c_left = (d_left >= 0) & (np.abs(z - z_left) < thresh)
+          c_right = (d_right >= 0) & (np.abs(z - z_right) < thresh)
+          
+          is_non_edge = c_up & c_down & c_left & c_right & (dist_grid >= 0)
+
+          for i in range(num_y):
+            for j in range(num_x):
+              if dist_grid[i, j] >= 0:
+                h_pos = hit_grid[i, j]
+                col = (0.0, 1.0, 0.0, 0.8) if is_non_edge[i, j] else (1.0, 0.0, 0.0, 0.8)
+                visualizer.add_sphere(h_pos, radius=0.02, color=col)
 
 # =====================================================================
 # Configuration
