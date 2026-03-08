@@ -123,6 +123,13 @@ class HLIPCommandTerm(CommandTerm):
     self.T_max = getattr(cfg, "T_max", getattr(cfg, "gait_half_period", 0.4))
     self.T = torch.empty(self.num_envs, device=self.device).uniform_(self.T_min, self.T_max)
 
+    self.z_sw_max_range = getattr(cfg, "z_sw_max_range", None)
+    self.z_sw_max_envs = torch.empty(self.num_envs, device=self.device)
+    if self.z_sw_max_range is not None:
+      self.z_sw_max_envs.uniform_(self.z_sw_max_range[0], self.z_sw_max_range[1])
+    else:
+      self.z_sw_max_envs.fill_(cfg.z_sw_max)
+
     # Resolve foot body indices.
     self._foot_body_ids, _ = self.robot.find_bodies(cfg.foot_body_name)
     assert len(self._foot_body_ids) == 2, (
@@ -233,7 +240,7 @@ class HLIPCommandTerm(CommandTerm):
     )
 
     # Foot target for observation.
-    self.foot_target = torch.zeros(self.num_envs, 2, device=self.device)
+    self.foot_target = torch.zeros(self.num_envs, 3, device=self.device)
 
     # Standing / heading control.
     self.is_standing_env = torch.zeros(
@@ -286,6 +293,9 @@ class HLIPCommandTerm(CommandTerm):
       # --- Sample new step time ---
       self.T[trans_ids] = torch.empty(len(trans_ids), device=self.device).uniform_(self.T_min, self.T_max)
       self.full_gait_period[trans_ids] = 2.0 * (self.T[trans_ids] - self.T_ds)
+      
+      if self.z_sw_max_range is not None:
+        self.z_sw_max_envs[trans_ids] = torch.empty(len(trans_ids), device=self.device).uniform_(self.z_sw_max_range[0], self.z_sw_max_range[1])
       # ----------------------------
 
       # Record stance foot pose at transition.
@@ -535,7 +545,28 @@ class HLIPCommandTerm(CommandTerm):
     bht = bezier_deg(0, self.phase_var, T_tensor_sw, horizontal_cp, 4)
 
     z_sw_max = torch.full((N,), self.cfg.z_sw_max, device=self.device)
-    z_sw_neg = torch.full((N,), self.cfg.z_sw_min, device=self.device)
+
+    try:
+      heightmap_data = self._env.scene.sensors["heightmap"].data
+      hit_pos_w = heightmap_data.hit_pos_w # (N, num_rays, 3)
+
+      # Convert foot_target to world position
+      local_target = torch.cat([foot_target_clipped[:, :2], torch.zeros(N, 1, device=self.device)], dim=1)
+      world_target_pos = self.stance_foot_pos_0 + quat_apply(
+        yaw_quat(self.stance_foot_ori_quat_0), local_target
+      )
+
+      # Find closest point on heightmap
+      diffs = hit_pos_w[:, :, :2] - world_target_pos.unsqueeze(1)[:, :, :2]
+      dist_sq = (diffs ** 2).sum(dim=-1)
+      closest_indices = dist_sq.argmin(dim=-1)
+
+      closest_z_w = torch.gather(hit_pos_w[:, :, 2], 1, closest_indices.unsqueeze(1)).squeeze(1)
+
+      # Convert back to local Z relative to stance foot
+      z_sw_neg = closest_z_w - self.stance_foot_pos_0[:, 2]
+    except KeyError:
+      z_sw_neg = torch.full((N,), self.cfg.z_sw_min, device=self.device)
 
     # Start Bezier from the actual swing foot position (stance-local frame)
     # recorded at the beginning of this half-gait.
@@ -543,10 +574,15 @@ class HLIPCommandTerm(CommandTerm):
     step_x_init = self.swing_foot_pos_0[:, 0]
     step_y_init = self.swing_foot_pos_0[:, 1]
 
+    # dynamically adjust z_sw_max to be relative to the highest point between start and end
+    z_sw_max_updated = torch.max(z_init, z_sw_neg) + self.z_sw_max_envs
+
+    self.foot_target = torch.cat([foot_target_clipped[:, :2], z_sw_neg.unsqueeze(1)], dim=1)
+
     foot_pos, sw_z = calculate_cur_swing_foot_pos(
       bht,
       z_init,
-      z_sw_max,
+      z_sw_max_updated,
       self.phase_var,
       step_x_init,
       step_y_init,
@@ -726,6 +762,8 @@ class HLIPCommandTerm(CommandTerm):
     # Reset gait phase and resample T.
     self.T[env_ids] = r.uniform_(self.T_min, self.T_max)
     self.full_gait_period[env_ids] = 2.0 * (self.T[env_ids] - self.T_ds)
+    if self.z_sw_max_range is not None:
+      self.z_sw_max_envs[env_ids] = r.uniform_(self.z_sw_max_range[0], self.z_sw_max_range[1])
     self.gait_time[env_ids] = 0.0
 
     # Start with left foot as stance (stance_idx=0).
@@ -828,8 +866,9 @@ class HLIPCommandTerm(CommandTerm):
 
     # Red = foot placement target (from HLIP capture-point planner).
     # foot_target is in stance-local frame; rotate by stance yaw to world.
+    z_val = self.foot_target[batch, 2].item() if self.foot_target.shape[-1] >= 3 else 0.0
     target_local = torch.tensor(
-      [self.foot_target[batch, 0].item(), self.foot_target[batch, 1].item(), 0.0],
+      [self.foot_target[batch, 0].item(), self.foot_target[batch, 1].item(), z_val],
       device=self.device,
     )
     target_world = (
@@ -985,6 +1024,9 @@ class HLIPCommandCfg(CommandTermCfg):
   # Swing trajectory.
   z_sw_max: float = 0.1
   """Maximum swing foot height [m]."""
+
+  z_sw_max_range: tuple[float, float] | None = None
+  """Range to sample maximum swing foot height from [m]. If None, use z_sw_max."""
 
   z_sw_min: float = 0.0
   """Swing foot landing height [m]."""

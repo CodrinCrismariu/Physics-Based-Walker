@@ -204,3 +204,10 @@ def base_z(
   """Base height above ground. Shape (num_envs, 1)."""
   asset: Entity = env.scene[asset_cfg.name]
   return asset.data.root_link_pos_w[:, 2].unsqueeze(-1)
+
+
+def heightmap_data(
+  env: ManagerBasedRlEnv,
+) -> torch.Tensor:
+  """Heightmap data. Returns lengths of rays."""
+  return env.scene.sensors["heightmap"].data.distances

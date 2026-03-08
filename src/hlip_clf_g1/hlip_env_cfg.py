@@ -213,9 +213,9 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       z0=0.67,
       y_nom=0.25,
       T_min=0.3,
-      T_max=0.7,
+      T_max=0.8,
       T_ds=0.0,
-      z_sw_max=0.1,
+      z_sw_max=0.2,
       z_sw_min=0.0,
       foot_target_range_y=(0.1, 0.5),
       pelv_pitch_ref=0,
@@ -358,6 +358,14 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
     "fell_over": TerminationTermCfg(
       func=mdp.bad_orientation,
       params={"limit_angle": math.radians(50.0)},
+    ),
+    "pelvis_too_low": TerminationTermCfg(
+      func=mdp.pelvis_too_low,
+      params={
+        "minimum_distance": 0.3, # Adjust if needed
+        "pelvis_body_name": "pelvis",
+        "foot_body_name": r".*_ankle_roll_link",
+      },
     ),
   }
 
