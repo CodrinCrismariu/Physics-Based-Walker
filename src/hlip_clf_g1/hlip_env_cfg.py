@@ -223,11 +223,24 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       elbow_ref=0.1,
       waist_yaw_ref=0.0,
       rel_standing_envs=0.05,
+      mpc_enabled=True,
+      mpc_horizon=4,
+      mpc_t_candidates=7,
+      mpc_w_vel=1.0,
+      mpc_w_time=0.25,
+      mpc_w_foot=0.05,
+      mpc_foot_target_range_x=(-0.35, 0.85),
+      mpc_abs_y_min=0.08,
+      mpc_abs_y_max=0.55,
+      mpc_signed_y_min=0.02,
+      mpc_max_step_length=0.95,
+      mpc_max_stance_height_delta=0.3,
+      mpc_fallback_scales=(1.0, 0.8, 0.6, 0.4, 0.2, 0.0),
       debug_vis=True,
       ranges=HLIPCommandCfg.Ranges(
-        lin_vel_x=(-0.7, 0.7),
+        lin_vel_x=(-0.6, 0.6),
         lin_vel_y=(-0.2, 0.2),
-        ang_vel_z=(-0.5, 0.5),
+        ang_vel_z=(-0.4, 0.4),
       ),
     ),
   }
@@ -408,3 +421,252 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
     decimation=4,
     episode_length_s=20.0,
   )
+
+def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
+  config = make_hlip_env_cfg()
+  base_actor_terms = config.observations["actor"].terms
+  # Customise the base HLIP env config for distillation as needed without 
+  # priviledged information as observations.
+
+  ##
+  # Observations
+  ##
+
+  student_vec_terms = {
+    "base_ang_vel": ObservationTermCfg(
+      func=mdp.builtin_sensor,
+      params={"sensor_name": "robot/imu_ang_vel"},
+    ),
+    "projected_gravity": ObservationTermCfg(
+      func=mdp.projected_gravity,
+    ),
+    "velocity_commands": ObservationTermCfg(
+      func=mdp.hlip_velocity_command,
+      params={"command_name": "hlip"},
+      scale=(2.0, 2.0, 2.0),
+    ),
+    "joint_pos": ObservationTermCfg(
+      func=mdp.joint_pos_rel,
+    ),
+    "joint_vel": ObservationTermCfg(
+      func=mdp.joint_vel_rel,
+      scale=0.05,
+    ),
+    "actions": ObservationTermCfg(func=mdp.last_action),
+  }
+
+  student_depth_terms = {
+    "depth": ObservationTermCfg(
+      func=mdp.depth_camera_chw_data,
+      params={"sensor_name": "head_camera"},
+      clip=(0.0, 2.0),
+      # noise=Unoise(n_min=-0.1, n_max=0.1), TODO add noise after i figure out the range
+      # clip=(-1.0, 1.0),
+    ),
+  }
+
+  observations = {
+    "student_vec": ObservationGroupCfg(
+      terms=student_vec_terms,
+      concatenate_terms=True,
+      enable_corruption=False, # For distillation, we typically don't want to add noise to the student observations, as we want it to learn to mimic the teacher as closely as possible. We can experiment with adding noise at fine tuning
+      history_length=5,
+    ),
+    "head_camera_depth": ObservationGroupCfg(
+      terms=student_depth_terms,
+      concatenate_terms=True,
+      enable_corruption=False,
+      # Keep depth as [B, C, H, W] for CNNModel. History flattening would collapse it to [B, -1].
+      history_length=0,
+    ),
+    "teacher": ObservationGroupCfg(
+      terms=base_actor_terms,  # Keep privileged actor observations from the base config.
+      concatenate_terms=True,
+      enable_corruption=False,
+      history_length=1,
+    ),
+  }
+
+  config.observations = observations
+
+  # Commands
+  commands: dict[str, CommandTermCfg] = {
+    "hlip": HLIPCommandCfg(
+      entity_name="robot",
+      resampling_time_range=(5.0, 15.0),
+      foot_body_name=r".*_ankle_roll_link",
+      z0=0.67,
+      y_nom=0.25,
+      T_min=0.3,
+      T_max=0.8,
+      T_ds=0.0,
+      z_sw_max=0.2,
+      z_sw_min=0.0,
+      foot_target_range_y=(0.1, 0.5),
+      pelv_pitch_ref=0,
+      shoulder_ref=(0.16, 0.0, 0.0),
+      elbow_ref=0.1,
+      waist_yaw_ref=0.0,
+      rel_standing_envs=0.05,
+      mpc_enabled=True,
+      mpc_horizon=4,
+      mpc_t_candidates=7,
+      mpc_w_vel=1.0,
+      mpc_w_time=0.25,
+      mpc_w_foot=0.05,
+      mpc_foot_target_range_x=(-0.35, 0.85),
+      mpc_abs_y_min=0.08,
+      mpc_abs_y_max=0.55,
+      mpc_signed_y_min=0.02,
+      mpc_max_step_length=0.95,
+      mpc_max_stance_height_delta=0.3,
+      mpc_fallback_scales=(1.0, 0.8, 0.6, 0.4, 0.2, 0.0),
+      debug_vis=True,
+      ranges=HLIPCommandCfg.Ranges(
+        lin_vel_x=(-0.1, 0.6),
+        lin_vel_y=(-0.1, 0.1),
+        ang_vel_z=(-0.4, 0.4),
+      ),
+    ),
+  }
+  config.commands = commands
+
+  terminations = dict(config.terminations)
+  terminations["mpc_foothold_tracking_failure"] = TerminationTermCfg(
+    func=mdp.mpc_foothold_tracking_failure,
+    params={
+      "command_name": "hlip",
+      "max_foothold_error": 0.15,
+      "check_phase_threshold": 0.95,
+    },
+  )
+  config.terminations = terminations
+
+  return config
+
+
+def make_hlip_distillation_fine_tune_env_cfg() -> ManagerBasedRlEnvCfg:
+  config = make_hlip_env_cfg()
+  base_critic_terms = config.observations["critic"].terms
+  # Customise the base HLIP env config for distillation as needed without 
+  # priviledged information as observations.
+
+  ##
+  # Observations
+  ##
+
+  student_vec_terms = {
+    "base_ang_vel": ObservationTermCfg(
+      func=mdp.builtin_sensor,
+      params={"sensor_name": "robot/imu_ang_vel"},
+      noise=Unoise(n_min=-0.2, n_max=0.2),
+    ),
+    "projected_gravity": ObservationTermCfg(
+      func=mdp.projected_gravity,
+      noise=Unoise(n_min=-0.05, n_max=0.05),
+    ),
+    "velocity_commands": ObservationTermCfg(
+      func=mdp.hlip_velocity_command,
+      params={"command_name": "hlip"},
+      scale=(2.0, 2.0, 2.0),
+    ),
+    "joint_pos": ObservationTermCfg(
+      func=mdp.joint_pos_rel,
+      noise=Unoise(n_min=-0.01, n_max=0.01),
+    ),
+    "joint_vel": ObservationTermCfg(
+      func=mdp.joint_vel_rel,
+      noise=Unoise(n_min=-1.0, n_max=1.0),
+      scale=0.05,
+    ),
+    "actions": ObservationTermCfg(func=mdp.last_action),
+  }
+
+  student_depth_terms = {
+    "depth": ObservationTermCfg(
+      func=mdp.depth_camera_chw_data,
+      params={"sensor_name": "head_camera"},
+      clip=(0.0, 2.0),
+      # noise=Unoise(n_min=-0.1, n_max=0.1), TODO add noise after i figure out the range
+      # clip=(-1.0, 1.0),
+    ),
+  }
+
+  observations = {
+    "student_vec": ObservationGroupCfg(
+      terms=student_vec_terms,
+      concatenate_terms=True,
+      enable_corruption=True,
+      history_length=1,
+    ),
+    "head_camera_depth": ObservationGroupCfg(
+      terms=student_depth_terms,
+      concatenate_terms=True,
+      enable_corruption=True,
+      # Keep depth as [B, C, H, W] for CNNModel. History flattening would collapse it to [B, -1].
+      history_length=0,
+    ),
+    "critic": ObservationGroupCfg(
+      terms=base_critic_terms,  # Keep privileged actor observations from the base config.
+      concatenate_terms=True,
+      enable_corruption=False,
+      history_length=1,
+    ),
+  }
+
+  config.observations = observations
+
+  # Commands
+  commands: dict[str, CommandTermCfg] = {
+    "hlip": HLIPCommandCfg(
+      entity_name="robot",
+      resampling_time_range=(5.0, 15.0),
+      foot_body_name=r".*_ankle_roll_link",
+      z0=0.67,
+      y_nom=0.25,
+      T_min=0.3,
+      T_max=0.8,
+      T_ds=0.0,
+      z_sw_max=0.2,
+      z_sw_min=0.0,
+      foot_target_range_y=(0.1, 0.5),
+      pelv_pitch_ref=0,
+      shoulder_ref=(0.16, 0.0, 0.0),
+      elbow_ref=0.1,
+      waist_yaw_ref=0.0,
+      rel_standing_envs=0.05,
+      mpc_enabled=True,
+      mpc_horizon=4,
+      mpc_t_candidates=7,
+      mpc_w_vel=1.0,
+      mpc_w_time=0.25,
+      mpc_w_foot=0.05,
+      mpc_foot_target_range_x=(-0.35, 0.85),
+      mpc_abs_y_min=0.08,
+      mpc_abs_y_max=0.55,
+      mpc_signed_y_min=0.02,
+      mpc_max_step_length=0.95,
+      mpc_max_stance_height_delta=0.3,
+      mpc_fallback_scales=(1.0, 0.8, 0.6, 0.4, 0.2, 0.0),
+      debug_vis=True,
+      ranges=HLIPCommandCfg.Ranges(
+        lin_vel_x=(-0.1, 0.6),
+        lin_vel_y=(-0.1, 0.1),
+        ang_vel_z=(-0.4, 0.4),
+      ),
+    ),
+  }
+  config.commands = commands
+
+  terminations = dict(config.terminations)
+  terminations["mpc_foothold_tracking_failure"] = TerminationTermCfg(
+    func=mdp.mpc_foothold_tracking_failure,
+    params={
+      "command_name": "hlip",
+      "max_foothold_error": 0.2,
+      "check_phase_threshold": 0.95,
+    },
+  )
+  config.terminations = terminations
+
+  return config

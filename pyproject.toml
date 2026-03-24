@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 hlip-clf-g1 = "hlip_clf_g1:main"
+custom_train = "hlip_clf_g1.custom_train:main"
 
 [project.entry-points."mjlab.tasks"]
 hlip_clf_g1 = "hlip_clf_g1"

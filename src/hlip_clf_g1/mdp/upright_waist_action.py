@@ -7,7 +7,6 @@ waist pitch and waist roll to maintain an upright body.
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-import math
 
 import torch
 

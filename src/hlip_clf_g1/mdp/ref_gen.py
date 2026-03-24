@@ -11,7 +11,6 @@ work with the mjlab framework (pure PyTorch, no Isaac Lab dependencies).
 from __future__ import annotations
 
 import math
-from typing import Tuple
 
 import torch
 from torch import Tensor

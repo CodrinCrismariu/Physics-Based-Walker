@@ -27,8 +27,6 @@ def commands_hlip(
 
   Gradually increases the range of commanded velocities as training progresses.
   """
-  del env_ids
-
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm, HLIPCommandCfg
   from typing import cast
 
@@ -108,8 +106,6 @@ def clf_curriculum(
     reward_name: Name of the reward term whose weight is being adjusted.
     weight_stages: List of dicts with 'step' and 'weight' keys.
   """
-  del env_ids
-
   for stage in weight_stages:
     if env.common_step_counter > stage["step"]:
       reward_cfg = env.reward_manager.get_term_cfg(reward_name)

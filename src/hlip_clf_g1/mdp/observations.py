@@ -119,6 +119,17 @@ def domain_flag(
   return cmd.stance_idx.float().unsqueeze(-1)
 
 
+def touchdown_target(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+) -> torch.Tensor:
+  """Touchdown target in stance-local frame. Shape (num_envs, 3)."""
+  from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
+
+  cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  return cmd.foot_target
+
+
 # =====================================================================
 # Foot velocity observations
 # =====================================================================
@@ -211,3 +222,48 @@ def heightmap_data(
 ) -> torch.Tensor:
   """Heightmap data. Returns lengths of rays."""
   return env.scene.sensors["heightmap"].data.distances
+
+def rgbd_camera_data(
+  env: ManagerBasedRlEnv,
+  sensor_name: str = "head_camera",
+) -> torch.Tensor:
+  """Depth camera data flattened per environment.
+
+  Returns shape (num_envs, H*W), which is compatible with MLP observation
+  concatenation. Use ``sensor_name`` to select a specific camera sensor.
+  """
+  sensor = env.scene.sensors[sensor_name]
+  depth = sensor.data.depth
+  if depth is None:
+    raise ValueError(f"Depth data is not available for sensor '{sensor_name}'.")
+  return depth.reshape(depth.shape[0], -1)
+
+
+def depth_camera_chw_data(
+  env: ManagerBasedRlEnv,
+  sensor_name: str = "head_camera",
+) -> torch.Tensor:
+  """Depth camera data in CNN-friendly channel-first image layout.
+
+  Returns shape (num_envs, 1, H, W). This is intended for CNNModel inputs.
+  """
+  sensor = env.scene.sensors[sensor_name]
+  depth = sensor.data.depth
+  if depth is None:
+    raise ValueError(f"Depth data is not available for sensor '{sensor_name}'.")
+
+  if depth.ndim != 4:
+    raise ValueError(
+      f"Expected depth tensor with 4 dims [B,H,W,C] or [B,C,H,W], got shape {tuple(depth.shape)}."
+    )
+
+  # Camera sensor provides [B, H, W, C] with C=1.
+  if depth.shape[-1] == 1:
+    return depth.permute(0, 3, 1, 2).contiguous()
+  # Accept already channel-first tensors for robustness.
+  if depth.shape[1] == 1:
+    return depth
+
+  raise ValueError(
+    f"Expected a single-channel depth image, got shape {tuple(depth.shape)}."
+  )

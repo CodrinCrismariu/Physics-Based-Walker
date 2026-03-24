@@ -12,13 +12,12 @@ from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
-from mjlab.sensor import ContactMatch, ContactSensorCfg, RayCastSensorCfg, GridPatternCfg, ObjRef
+from mjlab.sensor import ContactMatch, ContactSensorCfg, RayCastSensorCfg, GridPatternCfg, ObjRef, CameraSensorCfg
 from mjlab.terrains import BoxSteppingStonesTerrainCfg, BoxPyramidStairsTerrainCfg, BoxInvertedPyramidStairsTerrainCfg
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 from mjlab.terrains import TerrainImporterCfg
 from hlip_clf_g1 import mdp
-from hlip_clf_g1.hlip_env_cfg import make_hlip_env_cfg
-
+from hlip_clf_g1.hlip_env_cfg import make_hlip_env_cfg, make_hlip_distillation_env_cfg, make_hlip_distillation_fine_tune_env_cfg
 
 def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create Unitree G1 flat-terrain HLIP + CLF walking configuration."""
@@ -53,10 +52,10 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   heightmap_cfg = RayCastSensorCfg(
     name="heightmap",
     frame=ObjRef(type="body", name="pelvis", entity="robot"),
-    pattern=GridPatternCfg(size=(1.5, 1), resolution=0.1),
+    pattern=GridPatternCfg(size=(3, 1.5), resolution=0.075),
     ray_alignment="yaw",
     max_distance=2.0,
-    debug_vis=True,
+    debug_vis=False,
     viz=RayCastSensorCfg.VizCfg(
       hit_color=(0, 1, 0, 0.8),
       miss_color=(1, 0, 0, 0.4),
@@ -112,17 +111,37 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 STEPPING_STONE_TERRAINS_CFG = TerrainGeneratorCfg(
   size=(8.0, 8.0),
   border_width=20.0,
-  num_rows=10,
-  num_cols=20,
+  num_rows=5,
+  num_cols=10,
   sub_terrains={
     "stepping_stones": BoxSteppingStonesTerrainCfg(
       proportion=1.0,
-      stone_size_range=(0.4, 0.8),
-      stone_distance_range=(0.2, 0.5),
+      stone_size_range=(0.2, 0.4),
+      stone_distance_range=(0.08, 0.2),
       stone_height=0.2,
       stone_height_variation=0.1,
-      floor_depth=2.0,
+      floor_depth=1.0,
       platform_width=2.0,
+    ),
+  },
+  add_lights=True,
+)
+
+SIMPLE_STEPPING_STONE_TERRAINS_CFG = TerrainGeneratorCfg(
+  size=(8.0, 8.0),
+  border_width=20.0,
+  num_rows=3,
+  num_cols=6,
+  curriculum=False,
+  sub_terrains={
+    "stepping_stones": BoxSteppingStonesTerrainCfg(
+      proportion=1.0,
+      stone_size_range=(0.25, 0.28),
+      stone_distance_range=(0.18, 0.22),
+      stone_height=0.14,
+      stone_height_variation=0.15,
+      floor_depth=0.8,
+      platform_width=2.5,
     ),
   },
   add_lights=True,
@@ -140,33 +159,42 @@ def unitree_g1_hlip_stepping_stone_env_cfg(
   cfg.scene.terrain = TerrainImporterCfg(
     terrain_type="generator",
     terrain_generator=replace(STEPPING_STONE_TERRAINS_CFG),
-    max_init_terrain_level=5,
+    max_init_terrain_level=1,
   )
   cfg.scene.terrain.terrain_generator.curriculum = False
+
+  # Stairs environment uses adaptive heightmap stepping, disable flat height randomisation
+  cfg.commands["hlip"].z_sw_max_range = None
 
   # Increase contact limits for complex terrain geometry.
   cfg.sim.nconmax = 120
   cfg.sim.njmax = 600
 
-  # ── Curriculum ───────────────────────────────────────────────────────
-  cfg.curriculum["terrain_levels"] = CurriculumTermCfg(
-    func=mdp.terrain_levels_hlip,
-    params={"command_name": "hlip"},
-  )
+  return cfg
 
-  # ── Play-mode overrides ─────────────────────────────────────────────
-  if play:
-    cfg.events["randomize_terrain"] = EventTermCfg(
-      func=mdp.randomize_terrain,
-      mode="reset",
-      params={},
-    )
-    if cfg.scene.terrain.terrain_generator is not None:
-      cfg.scene.terrain.terrain_generator.curriculum = False
-      cfg.scene.terrain.terrain_generator.num_cols = 5
-      cfg.scene.terrain.terrain_generator.num_rows = 5
-      cfg.scene.terrain.terrain_generator.border_width = 10.0
-    cfg.curriculum.pop("terrain_levels", None)
+
+def unitree_g1_hlip_simple_stepping_stone_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 simple stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(SIMPLE_STEPPING_STONE_TERRAINS_CFG),
+    max_init_terrain_level=0,
+  )
+  if cfg.scene.terrain.terrain_generator is not None:
+    cfg.scene.terrain.terrain_generator.curriculum = False
+
+  # Stepping-stone environment uses adaptive heightmap stepping.
+  cfg.commands["hlip"].z_sw_max_range = None
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
 
   return cfg
 
@@ -184,13 +212,13 @@ STAIRS_TERRAINS_CFG = TerrainGeneratorCfg(
       proportion=0.5,
       step_height_range=(0.1, 0.15),
       step_width=0.4,
-      platform_width=2.0,
+      platform_width=1,
     ),
     "inverted_pyramid_stairs": BoxInvertedPyramidStairsTerrainCfg(
       proportion=0.5,
       step_height_range=(0.1, 0.15),
       step_width=0.4,
-      platform_width=2.0,
+      platform_width=1,
     ),
   },
   add_lights=True,
@@ -238,5 +266,211 @@ def unitree_g1_hlip_stairs_env_cfg(
       cfg.scene.terrain.terrain_generator.num_rows = 5
       cfg.scene.terrain.terrain_generator.border_width = 10.0
     cfg.curriculum.pop("terrain_levels", None)
+
+  return cfg
+
+def unitree_g1_hlip_stepping_stone_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(STEPPING_STONE_TERRAINS_CFG),
+    max_init_terrain_level=1,
+  )
+  cfg.scene.terrain.terrain_generator.curriculum = False
+
+  # Stairs environment uses adaptive heightmap stepping, disable flat height randomisation
+  cfg.commands["hlip"].z_sw_max_range = None
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
+
+  return cfg
+
+
+def unitree_g1_hlip_distillation_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 simple stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # Replace base observations with distillation-specific actor/critic groups.
+  cfg.observations = make_hlip_distillation_env_cfg().observations
+  cfg.commands = make_hlip_distillation_env_cfg().commands
+  cfg.terminations = make_hlip_distillation_env_cfg().terminations
+
+  if play:
+    cfg.observations["student_vec"].enable_corruption = False
+    cfg.observations["head_camera_depth"].enable_corruption = False
+
+  camera = CameraSensorCfg(
+    name="head_camera",
+    camera_name="robot/head_camera",
+    data_types=("rgb", "depth"),
+    width=64,
+    height=48,
+    fovy=55.2
+  )
+
+  cfg.scene.sensors = (*cfg.scene.sensors, camera)
+
+  return cfg
+
+def unitree_g1_hlip_distillation_stepping_stone_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 simple stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # Replace base observations with distillation-specific actor/critic groups.
+  cfg.observations = make_hlip_distillation_env_cfg().observations
+  cfg.commands = make_hlip_distillation_env_cfg().commands
+  cfg.terminations = make_hlip_distillation_env_cfg().terminations
+
+  if play:
+    cfg.observations["student_vec"].enable_corruption = False
+    cfg.observations["head_camera_depth"].enable_corruption = False
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(SIMPLE_STEPPING_STONE_TERRAINS_CFG),
+    max_init_terrain_level=0,
+  )
+  if cfg.scene.terrain.terrain_generator is not None:
+    cfg.scene.terrain.terrain_generator.curriculum = False
+
+  # Stepping-stone environment uses adaptive heightmap stepping.
+  cfg.commands["hlip"].z_sw_max_range = None
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
+
+  camera = CameraSensorCfg(
+    name="head_camera",
+    camera_name="robot/head_camera",
+    data_types=("rgb", "depth"),
+    width=32,
+    height=24,
+    fovy=55.2
+  )
+
+  cfg.scene.sensors = (*cfg.scene.sensors, camera)
+
+  return cfg
+
+def unitree_g1_distillation_hlip_stairs_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 stairs terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  cfg.observations = make_hlip_distillation_env_cfg().observations
+  cfg.commands = make_hlip_distillation_env_cfg().commands
+  cfg.terminations = make_hlip_distillation_env_cfg().terminations
+
+  if play:
+    cfg.observations["student_vec"].enable_corruption = False
+    cfg.observations["head_camera_depth"].enable_corruption = False
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(STAIRS_TERRAINS_CFG),
+    max_init_terrain_level=5,
+  )
+  cfg.scene.terrain.terrain_generator.curriculum = True
+
+  # Stairs environment uses adaptive heightmap stepping, disable flat height randomisation
+  cfg.commands["hlip"].z_sw_max_range = None
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
+
+  # ── Curriculum ───────────────────────────────────────────────────────
+  cfg.curriculum["terrain_levels"] = CurriculumTermCfg(
+    func=mdp.terrain_levels_hlip,
+    params={"command_name": "hlip"},
+  )
+
+  # ── Play-mode overrides ─────────────────────────────────────────────
+  if play:
+    cfg.events["randomize_terrain"] = EventTermCfg(
+      func=mdp.randomize_terrain,
+      mode="reset",
+      params={},
+    )
+    if cfg.scene.terrain.terrain_generator is not None:
+      cfg.scene.terrain.terrain_generator.curriculum = False
+      cfg.scene.terrain.terrain_generator.num_cols = 5
+      cfg.scene.terrain.terrain_generator.num_rows = 5
+      cfg.scene.terrain.terrain_generator.border_width = 10.0
+    cfg.curriculum.pop("terrain_levels", None)
+
+  camera = CameraSensorCfg(
+    name="head_camera",
+    camera_name="robot/head_camera",
+    data_types=("rgb", "depth"),
+    width=32,
+    height=24,
+    fovy=55.2
+  )
+
+  cfg.scene.sensors = (*cfg.scene.sensors, camera)
+
+  return cfg
+
+def unitree_g1_hlip_distillation_fine_tune_stepping_stone_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 simple stepping-stone terrain HLIP + CLF walking configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  # Replace base observations with distillation-specific actor/critic groups.
+  cfg.observations = make_hlip_distillation_fine_tune_env_cfg().observations
+  cfg.commands = make_hlip_distillation_fine_tune_env_cfg().commands
+  cfg.terminations = make_hlip_distillation_env_cfg().terminations
+
+  if play:
+    cfg.observations["student_vec"].enable_corruption = False
+    cfg.observations["head_camera_depth"].enable_corruption = False
+
+  # ── Terrain ──────────────────────────────────────────────────────────
+  assert cfg.scene.terrain is not None
+  cfg.scene.terrain = TerrainImporterCfg(
+    terrain_type="generator",
+    terrain_generator=replace(SIMPLE_STEPPING_STONE_TERRAINS_CFG),
+    max_init_terrain_level=0,
+  )
+  if cfg.scene.terrain.terrain_generator is not None:
+    cfg.scene.terrain.terrain_generator.curriculum = False
+
+  # Stepping-stone environment uses adaptive heightmap stepping.
+  cfg.commands["hlip"].z_sw_max_range = None
+
+  # Increase contact limits for complex terrain geometry.
+  cfg.sim.nconmax = 120
+  cfg.sim.njmax = 600
+
+  camera = CameraSensorCfg(
+    name="head_camera",
+    camera_name="robot/head_camera",
+    data_types=("rgb", "depth"),
+    width=32,
+    height=24,
+    fovy=55.2
+  )
+
+  cfg.scene.sensors = (*cfg.scene.sensors, camera)
 
   return cfg
