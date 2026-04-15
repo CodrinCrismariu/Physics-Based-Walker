@@ -297,8 +297,8 @@ HLIP and MPC are coupled through two variables:
 
 The coupling is:
 
-1. MPC computes $(p_1, T_1)$ from terrain + command.
-2. HLIP uses $T_1$ for orbit rollout and phase timing.
+1. MPC computes $p_1$ and a sampled command velocity from terrain + command intent.
+2. HLIP uses fixed step time for orbit rollout and phase timing.
 3. Swing trajectory tracks $p_1$ (including its landing height).
 
 So HLIP provides dynamic template structure, and MPC projects that structure onto locally feasible terrain contact choices.
@@ -325,8 +325,10 @@ In `make_hlip_env_cfg` (`hlip_env_cfg.py`), key runtime choices are:
 
 - `mpc_enabled=True`
 - `mpc_horizon=4`
-- `mpc_t_candidates=7`
-- `T_min=0.3`, `T_max=0.8`
+- `mpc_fixed_step_time=0.4`
+- `mpc_num_vel_samples_x=5`
+- `mpc_num_vel_samples_y=5`
+- `T_min=0.4`, `T_max=0.4`
 - `mpc_foot_target_range_x=(-0.35, 0.85)`
 - `mpc_abs_y_min=0.08`, `mpc_abs_y_max=0.55`
 - `mpc_signed_y_min=0.02`
@@ -367,7 +369,7 @@ Use this view to quickly diagnose:
    - widen x/y bounds
    - relax `mpc_signed_y_min`
 2. If footholds sit too close to edges, reduce `mpc_edge_height_threshold` or tighten stance height delta.
-3. If gait becomes jittery, increase `mpc_w_time` to bias toward nominal timing.
+3. If command jumps too aggressively, increase `mpc_w_cmd` to keep sampled MPC velocity closer to commanded velocity.
 4. If command tracking is poor, increase `mpc_w_vel`.
 5. If planner overfits to command and ignores terrain shape, increase `mpc_w_foot` and/or tighten constraints.
 
@@ -376,7 +378,7 @@ Use this view to quickly diagnose:
 At each transition:
 
 1. HLIP proposes where/when to step based on velocity command.
-2. MPC checks terrain feasibility over a short horizon and picks feasible footholds and step timing.
+2. MPC checks terrain feasibility over a short horizon and picks feasible footholds and sampled per-step velocity.
 3. Swing trajectory tracks that target with smooth Bezier motion.
 4. CLF compares actual vs reference and feeds reward shaping.
 

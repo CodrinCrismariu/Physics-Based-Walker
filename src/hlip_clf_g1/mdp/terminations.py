@@ -92,3 +92,71 @@ def mpc_foothold_tracking_failure(
   foothold_error = torch.linalg.norm(swing_local - target_local, dim=1)
 
   return is_touchdown_window & has_plan & (foothold_error > max_foothold_error)
+
+
+def mpc_stance_foot_not_in_contact(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  sensor_name: str,
+  grace_time_s: float = 0.05,
+) -> torch.Tensor:
+  """Terminate when the MPC-assumed stance foot is not touching the ground."""
+  from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
+
+  cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  sensor: ContactSensor = env.scene[sensor_name]
+  assert sensor.data.found is not None
+
+  # Foot contact is ordered as [left, right]. stance_idx uses the same order.
+  in_contact = sensor.data.found > 0
+  stance_contact = torch.gather(
+    in_contact,
+    1,
+    cmd.stance_idx.unsqueeze(1),
+  ).squeeze(1)
+
+  # Only enforce this when MPC is active and has a valid plan.
+  if hasattr(cmd, "_mpc_enabled") and not bool(cmd._mpc_enabled):
+    return torch.zeros_like(stance_contact)
+  has_plan = cmd._mpc_has_plan if hasattr(cmd, "_mpc_has_plan") else torch.ones_like(stance_contact)
+
+  elapsed_s = env.episode_length_buf.float() * env.step_dt
+  past_grace = elapsed_s >= float(grace_time_s)
+
+  return has_plan & past_grace & (~stance_contact)
+
+
+def prolonged_double_support(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  max_double_support_time_s: float = 1.0,
+) -> torch.Tensor:
+  """Terminate when both feet stay in contact for too long.
+
+  Accumulates consecutive time in which left and right feet are both in
+  contact. The accumulator resets whenever at least one foot leaves contact.
+  """
+  sensor: ContactSensor = env.scene[sensor_name]
+  assert sensor.data.found is not None
+
+  in_contact = sensor.data.found > 0
+  both_contact = torch.all(in_contact, dim=1)
+
+  buf_name = "_double_support_time_buf"
+  buf = getattr(env, buf_name, None)
+  if buf is None or buf.shape[0] != both_contact.shape[0]:
+    buf = torch.zeros(both_contact.shape[0], device=both_contact.device)
+
+  # Clear stale carry-over at episode boundaries.
+  just_reset = env.episode_length_buf == 0
+  buf = torch.where(just_reset, torch.zeros_like(buf), buf)
+
+  dt = float(env.step_dt)
+  buf = torch.where(
+    both_contact,
+    buf + dt,
+    torch.zeros_like(buf),
+  )
+  setattr(env, buf_name, buf)
+
+  return buf > float(max_double_support_time_s)

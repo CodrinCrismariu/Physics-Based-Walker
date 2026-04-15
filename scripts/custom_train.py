@@ -15,7 +15,7 @@ from mjlab.envs import ManagerBasedRlEnv, ManagerBasedRlEnvCfg
 from mjlab.rl import MjlabOnPolicyRunner, RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from mjlab.tasks.registry import list_tasks, load_env_cfg, load_rl_cfg, load_runner_cls
 from mjlab.tasks.tracking.mdp import MotionCommandCfg
-from hlip_clf_g1.rl import RslRlDistillationRunnerCfg, RslRlDistillationFineTuneRunnerCfg
+from hlip_clf_g1.rl import RslRlDistillationRunnerCfg
 from mjlab.utils.gpu import select_gpus
 from mjlab.utils.os import dump_yaml, get_checkpoint_path, get_wandb_checkpoint_path
 from mjlab.utils.torch import configure_torch_backends
@@ -50,7 +50,10 @@ class TrainConfig:
   def from_task(task_id: str) -> "TrainConfig":
     env_cfg = load_env_cfg(task_id)
     agent_cfg = load_rl_cfg(task_id)
-    assert isinstance(agent_cfg, RslRlOnPolicyRunnerCfg | RslRlDistillationRunnerCfg)
+    assert isinstance(
+      agent_cfg,
+      RslRlOnPolicyRunnerCfg | RslRlDistillationRunnerCfg,
+    )
     return TrainConfig(env=env_cfg, agent=agent_cfg)
 
 
@@ -204,6 +207,7 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
   log_root_path = log_dir.parent  # Go up from specific run dir to experiment dir.
 
   is_distillation = isinstance(cfg.agent, RslRlDistillationRunnerCfg)
+
   if not is_distillation and (
     cfg.student_load_run is not None or cfg.student_wandb_run_path is not None
   ):
@@ -216,7 +220,7 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
   student_resume_path: Path | None = None
   should_resume = cfg.agent.resume
   if is_distillation and not should_resume:
-    # Distillation requires teacher weights; infer resume intent when a source is provided.
+    # Distillation often starts from pretrained checkpoints.
     should_resume = cfg.wandb_run_path is not None or cfg.agent.load_run != ".*"
     if should_resume and rank == 0:
       print("[INFO] Enabling resume for distillation to load teacher checkpoint.")
@@ -284,15 +288,6 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
 
   env = RslRlVecEnvWrapper(env, clip_actions=cfg.agent.clip_actions)
 
-  if isinstance(cfg.agent, RslRlDistillationFineTuneRunnerCfg):
-    stance_source = getattr(cfg.agent, "stance_refeed_source", "prediction")
-    if stance_source == "mpc":
-      cfg.agent.actor.class_name = "hlip_clf_g1.rl.stance_model:StanceMpcInputMLPModel"
-    else:
-      cfg.agent.actor.class_name = "hlip_clf_g1.rl.stance_model:StanceRefeedMLPModel"
-    if rank == 0:
-      print(f"[INFO] Fine-tune stance refeed source: {stance_source}.")
-
   agent_cfg = asdict(cfg.agent)
   env_cfg = asdict(cfg.env)
 
@@ -312,7 +307,7 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
     print(f"[INFO]: Loading model checkpoint from: {resume_path}")
     try:
       runner.load(str(resume_path))
-    except RuntimeError as err:
+    except (RuntimeError, KeyError) as err:
       if not is_distillation:
         raise
       if _bootstrap_distillation_from_rl_checkpoint(runner, resume_path):
@@ -352,11 +347,22 @@ def run_train(task_id: str, cfg: TrainConfig, log_dir: Path) -> None:
     dump_yaml(log_dir / "params" / "env.yaml", env_cfg)
     dump_yaml(log_dir / "params" / "agent.yaml", agent_cfg)
 
-  runner.learn(
-    num_learning_iterations=cfg.agent.max_iterations, init_at_random_ep_len=True
-  )
-
-  env.close()
+  try:
+    runner.learn(
+      num_learning_iterations=cfg.agent.max_iterations,
+      init_at_random_ep_len=True,
+    )
+  except KeyboardInterrupt:
+    if rank == 0:
+      print("\n[INFO] Training interrupted by user (Ctrl-C).")
+      interrupt_checkpoint = log_dir / "model_interrupt.pt"
+      try:
+        runner.save(str(interrupt_checkpoint))
+        print(f"[INFO] Saved interrupt checkpoint to: {interrupt_checkpoint}")
+      except Exception as err:
+        print(f"[WARN] Failed to save interrupt checkpoint: {err}")
+  finally:
+    env.close()
 
 
 def launch_training(task_id: str, args: TrainConfig | None = None):

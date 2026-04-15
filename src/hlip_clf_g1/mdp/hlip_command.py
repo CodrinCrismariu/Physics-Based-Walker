@@ -14,11 +14,13 @@ Ported from planc/tasks/.../hlip_cmd.py to work with the mjlab framework.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from mjlab.entity import Entity
 from mjlab.managers.command_manager import CommandTerm, CommandTermCfg
@@ -27,6 +29,7 @@ from mjlab.utils.lab_api.math import (
   quat_apply,
   quat_from_euler_xyz,
   quat_inv,
+  transform_points,
   wrap_to_pi,
   yaw_quat,
 )
@@ -35,6 +38,8 @@ from hlip_clf_g1.mdp.clf import CLF
 from hlip_clf_g1.mdp.ref_gen import HLIP, bezier_deg, calculate_cur_swing_foot_pos
 
 if TYPE_CHECKING:
+  import viser
+
   from mjlab.envs.manager_based_rl_env import ManagerBasedRlEnv
   from mjlab.viewer.debug_visualizer import DebugVisualizer
 
@@ -193,6 +198,11 @@ class HLIPCommandTerm(CommandTerm):
     # Desired velocity from an external source or internally sampled.
     self.vel_command = torch.zeros(self.num_envs, 3, device=self.device)
 
+    # Optional interactive manual command control from the viewer GUI.
+    self._manual_cmd_enabled: "viser.GuiCheckboxHandle | None" = None
+    self._manual_cmd_sliders: list["viser.GuiSliderHandle"] = []
+    self._manual_cmd_get_env_idx: Callable[[], int] | None = None
+
     # Per-env gait phase tracking.
     self.gait_time = torch.zeros(self.num_envs, device=self.device)
     T_swing = self.T - self.T_ds
@@ -241,8 +251,6 @@ class HLIPCommandTerm(CommandTerm):
 
     # Foot target for observation.
     self.foot_target = torch.zeros(self.num_envs, 3, device=self.device)
-    self.ai_foot_target = torch.zeros(self.num_envs, 3, device=self.device)
-    self._has_ai_foot_target = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     # Standing / heading control.
     self.is_standing_env = torch.zeros(
@@ -255,12 +263,37 @@ class HLIPCommandTerm(CommandTerm):
     self._prev_foot_contact = torch.zeros(
       self.num_envs, 2, dtype=torch.bool, device=self.device
     )
+    self._swing_contact_elapsed = torch.zeros(self.num_envs, device=self.device)
+    self._mpc_contact_recompute_cooldown = torch.zeros(
+      self.num_envs, device=self.device
+    )
 
     # Touchdown-based stance switching.
     self._touchdown_enabled = bool(getattr(cfg, "touchdown_switch_enabled", True))
     self._touchdown_sensor_name = str(getattr(cfg, "touchdown_sensor_name", "feet_ground_contact"))
     self._touchdown_min_phase = float(getattr(cfg, "touchdown_min_phase", 0.35))
     self._touchdown_timeout_phase = float(getattr(cfg, "touchdown_timeout_phase", 1.20))
+    self._touchdown_contact_grace_s = max(
+      float(getattr(cfg, "touchdown_contact_grace_period_s", 0.1)),
+      0.0,
+    )
+    self._mpc_contact_recompute_grace_s = max(
+      float(getattr(cfg, "mpc_contact_recompute_grace_period_s", 0.3)),
+      0.0,
+    )
+    self._phase_end_stance_flip_only = bool(
+      getattr(cfg, "phase_end_stance_flip_only", False)
+    )
+    self._mpc_stance_recovery_min_elapsed_s = max(
+      float(getattr(cfg, "mpc_stance_recovery_min_elapsed_s", 0.15)),
+      0.0,
+    )
+    self._mpc_contact_recovery_enabled = bool(
+      getattr(cfg, "mpc_contact_recovery_enabled", True)
+    )
+    self._mpc_replan_wait_for_stance_contact = bool(
+      getattr(cfg, "mpc_replan_wait_for_stance_contact", True)
+    )
 
     # Deferred stance foot initialization flag.  During _resample_command the
     # body positions are stale (sim.forward() hasn't run yet), so we defer
@@ -311,6 +344,7 @@ class HLIPCommandTerm(CommandTerm):
     )
     self._mpc_active_foot_target = torch.zeros(self.num_envs, 3, device=self.device)
     self._mpc_has_plan = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+    self._mpc_replan_pending = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
     self._mpc_last_cost = torch.zeros(self.num_envs, device=self.device)
     self._mpc_feasible_steps = torch.zeros(self.num_envs, device=self.device)
     self._mpc_fallback_used = torch.zeros(self.num_envs, device=self.device)
@@ -319,6 +353,10 @@ class HLIPCommandTerm(CommandTerm):
     self._hm_num_x = 0
     self._hm_num_y = 0
     self._hm_edge_threshold = float(getattr(cfg, "mpc_edge_height_threshold", -1.0))
+    self._hm_edge_clearance_distance = max(
+      float(getattr(cfg, "mpc_edge_clearance_distance", 0.0)),
+      0.0,
+    )
     self._hm_max_stance_height_delta = float(
       getattr(cfg, "mpc_max_stance_height_delta", -1.0)
     )
@@ -326,8 +364,9 @@ class HLIPCommandTerm(CommandTerm):
       hm_pattern = self._env.scene.sensors["heightmap"].cfg.pattern
       hm_res = float(hm_pattern.resolution)
       size_x, size_y = hm_pattern.size
-      self._hm_num_x = len(np.arange(-size_x / 2, size_x / 2 + hm_res * 0.5, hm_res))
-      self._hm_num_y = len(np.arange(-size_y / 2, size_y / 2 + hm_res * 0.5, hm_res))
+      # Derive grid shape from metric extents to avoid floating-step drift.
+      self._hm_num_x = int(round(float(size_x) / hm_res)) + 1
+      self._hm_num_y = int(round(float(size_y) / hm_res)) + 1
       if self._hm_edge_threshold <= 0.0:
         self._hm_edge_threshold = hm_res * math.tan(math.radians(20.0))
 
@@ -340,82 +379,426 @@ class HLIPCommandTerm(CommandTerm):
     """Foot target (kept for observation compatibility)."""
     return self.foot_target
 
-  def set_ai_touchdown_target(self, target_local: torch.Tensor) -> None:
-    """Set AI-predicted touchdown target in stance-local frame.
+  def _manual_control_enabled(self) -> bool:
+    if self._manual_cmd_enabled is not None:
+      return bool(self._manual_cmd_enabled.value)
+    return bool(self.cfg.manual_control)
 
-    Args:
-      target_local: Tensor of shape (num_envs, 3) in stance-local coordinates.
-    """
-    if target_local.shape[0] != self.num_envs or target_local.shape[-1] != 3:
-      raise ValueError(
-        f"Expected AI touchdown tensor with shape ({self.num_envs}, 3), got {tuple(target_local.shape)}."
+  def _manual_control_target_env_idx(self) -> int:
+    if self._manual_cmd_get_env_idx is None:
+      return 0
+    env_idx = int(self._manual_cmd_get_env_idx())
+    return max(0, min(env_idx, self.num_envs - 1))
+
+  def _manual_control_command_values(self) -> tuple[float, float, float]:
+    if len(self._manual_cmd_sliders) == 3:
+      return (
+        float(self._manual_cmd_sliders[0].value),
+        float(self._manual_cmd_sliders[1].value),
+        float(self._manual_cmd_sliders[2].value),
       )
-    self.ai_foot_target.copy_(target_local)
-    self._has_ai_foot_target[:] = True
+    return (0.0, 0.0, 0.0)
+
+  def _apply_manual_control(self, env_ids: torch.Tensor | None = None) -> None:
+    if not self._manual_control_enabled():
+      return
+
+    env_idx = self._manual_control_target_env_idx()
+    env_tensor = torch.tensor([env_idx], device=self.device, dtype=torch.long)
+    if env_ids is not None:
+      if not bool(torch.any(env_ids == env_idx)):
+        return
+
+    vx, vy, wz = self._manual_control_command_values()
+    self.vel_command[env_tensor, 0] = vx
+    self.vel_command[env_tensor, 1] = vy
+    self.vel_command[env_tensor, 2] = wz
+    self.is_standing_env[env_tensor] = False
+
+  def create_gui(
+    self,
+    name: str,
+    server: "viser.ViserServer",
+    get_env_idx: Callable[[], int],
+  ) -> None:
+    """Create manual velocity-command sliders."""
+    from viser import Icon
+
+    ranges = self.cfg.ranges
+    axis_specs = (
+      ("lin_vel_x", max(abs(ranges.lin_vel_x[0]), abs(ranges.lin_vel_x[1]))),
+      ("lin_vel_y", max(abs(ranges.lin_vel_y[0]), abs(ranges.lin_vel_y[1]))),
+      ("ang_vel_z", max(abs(ranges.ang_vel_z[0]), abs(ranges.ang_vel_z[1]))),
+    )
+    sliders: list["viser.GuiSliderHandle"] = []
+
+    with server.gui.add_folder(name.capitalize()):
+      enabled = server.gui.add_checkbox(
+        "Manual Control",
+        initial_value=bool(self.cfg.manual_control),
+      )
+
+      for label, max_abs in axis_specs:
+        slider = server.gui.add_slider(
+          label,
+          min=-max_abs,
+          max=max_abs,
+          step=0.01,
+          initial_value=0.0,
+        )
+        sliders.append(slider)
+
+      zero_btn = server.gui.add_button("Zero", icon=Icon.SQUARE_X)
+
+      @zero_btn.on_click
+      def _(_) -> None:
+        for slider in sliders:
+          slider.value = 0.0
+
+      # Optional runtime waist PD tuning controls.
+      try:
+        upper_body_lock = self._env.action_manager.get_term("upper_body_pd_lock")
+      except Exception:
+        upper_body_lock = None
+
+      if upper_body_lock is not None and hasattr(upper_body_lock, "get_waist_pd_gains"):
+        waist_gains = upper_body_lock.get_waist_pd_gains()
+        if waist_gains:
+          pd_sliders: dict[str, tuple["viser.GuiSliderHandle", "viser.GuiSliderHandle"]] = {}
+          default_waist_gains = dict(waist_gains)
+
+          for joint_name, (kp0, kd0) in sorted(waist_gains.items()):
+            label = joint_name.replace("_joint", "")
+            kp_max = max(100.0, 3.0 * float(kp0))
+            kd_max = max(5.0, 3.0 * float(kd0))
+
+            kp_slider = server.gui.add_slider(
+              f"{label} kp",
+              min=0.0,
+              max=kp_max,
+              step=max(0.1, kp_max / 500.0),
+              initial_value=float(kp0),
+            )
+            kd_slider = server.gui.add_slider(
+              f"{label} kd",
+              min=0.0,
+              max=kd_max,
+              step=max(0.01, kd_max / 500.0),
+              initial_value=float(kd0),
+            )
+            pd_sliders[joint_name] = (kp_slider, kd_slider)
+
+            @kp_slider.on_update
+            def _(_ev, _joint=joint_name, _kp=kp_slider, _kd=kd_slider) -> None:
+              upper_body_lock.set_waist_pd_gains(
+                _joint,
+                kp=float(_kp.value),
+                kd=float(_kd.value),
+              )
+
+            @kd_slider.on_update
+            def _(_ev, _joint=joint_name, _kp=kp_slider, _kd=kd_slider) -> None:
+              upper_body_lock.set_waist_pd_gains(
+                _joint,
+                kp=float(_kp.value),
+                kd=float(_kd.value),
+              )
+
+          reset_waist_pd = server.gui.add_button("Reset Waist PD")
+
+          @reset_waist_pd.on_click
+          def _(_) -> None:
+            for joint_name, (kp_def, kd_def) in default_waist_gains.items():
+              kp_slider, kd_slider = pd_sliders[joint_name]
+              kp_slider.value = float(kp_def)
+              kd_slider.value = float(kd_def)
+              upper_body_lock.set_waist_pd_gains(
+                joint_name,
+                kp=float(kp_def),
+                kd=float(kd_def),
+              )
+
+    self._manual_cmd_enabled = enabled
+    self._manual_cmd_sliders = sliders
+    self._manual_cmd_get_env_idx = get_env_idx
+
+  def _compute_steppability_masks(
+    self,
+    hit_pos_w: torch.Tensor,
+    distances: torch.Tensor,
+    stance_z_w: torch.Tensor | None = None,
+    sensor_pos_w: torch.Tensor | None = None,
+    sensor_quat_w: torch.Tensor | None = None,
+  ) -> tuple[torch.Tensor, torch.Tensor]:
+    """Classify steppable and near-edge heightmap cells.
+
+    A cell is edge-safe when all four cardinal neighbors are valid and
+    height differences are below the
+    configured threshold. Optionally enforces a maximum absolute height delta
+    to the stance foot, then applies a clearance margin from blocked cells.
+    Cells that pass edge checks but fail clearance are marked as near-edge.
+    """
+    valid_hits = distances >= 0.0
+    if self._hm_num_x <= 0 or self._hm_num_y <= 0:
+      return valid_hits, torch.zeros_like(valid_hits)
+
+    num_envs, num_rays, _ = hit_pos_w.shape
+    if num_rays != self._hm_num_x * self._hm_num_y:
+      return valid_hits, torch.zeros_like(valid_hits)
+
+    hm_sensor = self._env.scene.sensors.get("heightmap", None)
+    if hm_sensor is None:
+      return valid_hits, torch.zeros_like(valid_hits)
+
+    pattern = hm_sensor.cfg.pattern
+    resolution = float(pattern.resolution)
+
+    def _classify_from_grids(
+      z_grid: torch.Tensor,
+      d_grid: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+      z_pad = torch.full(
+        (num_envs, self._hm_num_y + 2, self._hm_num_x + 2),
+        float("inf"),
+        device=self.device,
+        dtype=z_grid.dtype,
+      )
+      d_pad = torch.full(
+        (num_envs, self._hm_num_y + 2, self._hm_num_x + 2),
+        -1.0,
+        device=self.device,
+        dtype=d_grid.dtype,
+      )
+      z_pad[:, 1:-1, 1:-1] = z_grid
+      d_pad[:, 1:-1, 1:-1] = d_grid
+
+      z_up = z_pad[:, :-2, 1:-1]
+      z_down = z_pad[:, 2:, 1:-1]
+      z_left = z_pad[:, 1:-1, :-2]
+      z_right = z_pad[:, 1:-1, 2:]
+
+      d_up = d_pad[:, :-2, 1:-1]
+      d_down = d_pad[:, 2:, 1:-1]
+      d_left = d_pad[:, 1:-1, :-2]
+      d_right = d_pad[:, 1:-1, 2:]
+
+      th = self._hm_edge_threshold
+      c_up = (d_up >= 0.0) & (torch.abs(z_grid - z_up) <= th)
+      c_down = (d_down >= 0.0) & (torch.abs(z_grid - z_down) <= th)
+      c_left = (d_left >= 0.0) & (torch.abs(z_grid - z_left) <= th)
+      c_right = (d_right >= 0.0) & (torch.abs(z_grid - z_right) <= th)
+
+      is_non_edge_grid = c_up & c_down & c_left & c_right & (d_grid >= 0.0)
+
+      if stance_z_w is not None and self._hm_max_stance_height_delta > 0.0:
+        stance_z = stance_z_w.view(num_envs, 1, 1)
+        stance_delta_ok = torch.abs(z_grid - stance_z) <= self._hm_max_stance_height_delta
+        is_non_edge_grid = is_non_edge_grid & stance_delta_ok
+
+      near_edge_grid = torch.zeros_like(is_non_edge_grid)
+      if self._hm_edge_clearance_distance > 0.0:
+        clearance_cells = max(
+          int(math.ceil(self._hm_edge_clearance_distance / max(resolution, 1.0e-6))),
+          1,
+        )
+        blocked = (~is_non_edge_grid).unsqueeze(1).to(dtype=torch.float32)
+        blocked_neighborhood = F.max_pool2d(
+          blocked,
+          kernel_size=2 * clearance_cells + 1,
+          stride=1,
+          padding=clearance_cells,
+        ).squeeze(1) > 0.5
+        near_edge_grid = is_non_edge_grid & blocked_neighborhood
+      steppable_grid = is_non_edge_grid & (~near_edge_grid)
+      return steppable_grid, near_edge_grid
+
+    if sensor_pos_w is None or sensor_quat_w is None:
+      hm_data = hm_sensor.data
+      if (
+        hm_data.pos_w is not None
+        and hm_data.quat_w is not None
+        and hm_data.pos_w.shape[0] == num_envs
+        and hm_data.quat_w.shape[0] == num_envs
+      ):
+        sensor_pos_w = hm_data.pos_w
+        sensor_quat_w = hm_data.quat_w
+      else:
+        # Fall back to legacy reshape behavior when sensor pose batch is ambiguous.
+        z = hit_pos_w[:, :, 2].reshape(num_envs, self._hm_num_y, self._hm_num_x)
+        d = distances.reshape(num_envs, self._hm_num_y, self._hm_num_x)
+        steppable, near_edge = _classify_from_grids(z, d)
+        return steppable.reshape(num_envs, num_rays), near_edge.reshape(num_envs, num_rays)
+
+    assert sensor_pos_w is not None
+    assert sensor_quat_w is not None
+
+    size_x, size_y = pattern.size
+
+    # Convert hit positions to sensor-local XY to recover per-ray grid indices.
+    points_rel = hit_pos_w - sensor_pos_w.unsqueeze(1)
+    points_local = transform_points(points_rel, quat=quat_inv(sensor_quat_w))
+    gx = (points_local[..., 0] + 0.5 * float(size_x)) / resolution
+    gy = (points_local[..., 1] + 0.5 * float(size_y)) / resolution
+    ix = torch.floor(gx + 0.5).to(torch.long)
+    iy = torch.floor(gy + 0.5).to(torch.long)
+    in_bounds = (
+      (ix >= 0) & (ix < self._hm_num_x) &
+      (iy >= 0) & (iy < self._hm_num_y)
+    )
+
+    # Guard against quantization collisions/holes at finer resolutions:
+    # if scatter is not bijective, use the deterministic ray-order reshape path.
+    num_cells = self._hm_num_x * self._hm_num_y
+    flat_idx = iy * self._hm_num_x + ix
+    flat_idx_safe = flat_idx.clamp(min=0, max=max(num_cells - 1, 0))
+    counts = torch.zeros(
+      (num_envs, num_cells),
+      device=self.device,
+      dtype=torch.long,
+    )
+    counts.scatter_add_(1, flat_idx_safe, in_bounds.to(dtype=torch.long))
+    one_to_one = torch.all(in_bounds, dim=1) & torch.all(counts == 1, dim=1)
+    if not bool(torch.all(one_to_one)):
+      z = hit_pos_w[:, :, 2].reshape(num_envs, self._hm_num_y, self._hm_num_x)
+      d = distances.reshape(num_envs, self._hm_num_y, self._hm_num_x)
+      steppable, near_edge = _classify_from_grids(z, d)
+      return steppable.reshape(num_envs, num_rays), near_edge.reshape(num_envs, num_rays)
+
+    # Scatter ray data into a canonical [num_y, num_x] grid.
+    z_grid = torch.full(
+      (num_envs, self._hm_num_y, self._hm_num_x),
+      float("inf"),
+      device=self.device,
+      dtype=hit_pos_w.dtype,
+    )
+    d_grid = torch.full(
+      (num_envs, self._hm_num_y, self._hm_num_x),
+      -1.0,
+      device=self.device,
+      dtype=distances.dtype,
+    )
+    batch_ids = torch.arange(num_envs, device=self.device, dtype=torch.long).unsqueeze(1).expand(num_envs, num_rays)
+    valid_scatter = in_bounds & valid_hits
+    z_world = hit_pos_w[..., 2]
+    z_grid[batch_ids[valid_scatter], iy[valid_scatter], ix[valid_scatter]] = z_world[valid_scatter]
+    d_grid[batch_ids[valid_scatter], iy[valid_scatter], ix[valid_scatter]] = distances[valid_scatter]
+    steppable_grid, near_edge_grid = _classify_from_grids(z_grid, d_grid)
+
+    ix_safe = ix.clamp(min=0, max=self._hm_num_x - 1)
+    iy_safe = iy.clamp(min=0, max=self._hm_num_y - 1)
+    steppable = steppable_grid[batch_ids, iy_safe, ix_safe]
+    near_edge = near_edge_grid[batch_ids, iy_safe, ix_safe]
+    mask_valid = in_bounds & valid_hits
+    return steppable & mask_valid, near_edge & mask_valid
 
   def _compute_non_edge_mask(
     self,
     hit_pos_w: torch.Tensor,
     distances: torch.Tensor,
     stance_z_w: torch.Tensor | None = None,
+    sensor_pos_w: torch.Tensor | None = None,
+    sensor_quat_w: torch.Tensor | None = None,
   ) -> torch.Tensor:
-    """Classify steppable (non-edge) heightmap cells.
-
-    Reuses the same edge rule as visualisation: a cell is non-edge when all
-    four cardinal neighbors are valid and height differences are below the
-    configured threshold. Optionally enforces a maximum absolute height delta
-    to the stance foot.
-    """
-    valid_hits = distances >= 0.0
-    if self._hm_num_x <= 0 or self._hm_num_y <= 0:
-      return valid_hits
-
-    num_envs, num_rays, _ = hit_pos_w.shape
-    if num_rays != self._hm_num_x * self._hm_num_y:
-      return valid_hits
-
-    z = hit_pos_w[:, :, 2].reshape(num_envs, self._hm_num_y, self._hm_num_x)
-    d = distances.reshape(num_envs, self._hm_num_y, self._hm_num_x)
-
-    z_pad = torch.full(
-      (num_envs, self._hm_num_y + 2, self._hm_num_x + 2),
-      float("inf"),
-      device=self.device,
-      dtype=z.dtype,
+    """Backward-compatible steppability mask used by existing MPC code paths."""
+    steppable, _ = self._compute_steppability_masks(
+      hit_pos_w,
+      distances,
+      stance_z_w,
+      sensor_pos_w,
+      sensor_quat_w,
     )
-    d_pad = torch.full(
-      (num_envs, self._hm_num_y + 2, self._hm_num_x + 2),
-      -1.0,
-      device=self.device,
-      dtype=d.dtype,
+    return steppable
+
+  def _classify_camera_rays_by_heightmap(
+    self,
+    env_idx: int,
+  ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    """Classify camera rays as steppable / near-edge via the heightmap map."""
+    if "head_camera_rays" not in self._env.scene.sensors:
+      return None, None
+    if "heightmap" not in self._env.scene.sensors:
+      return None, None
+
+    ray_sensor = self._env.scene.sensors["head_camera_rays"]
+    ray_data = ray_sensor.data
+    hm_sensor = self._env.scene.sensors["heightmap"]
+    hm_data = hm_sensor.data
+
+    if ray_data.hit_pos_w is None or ray_data.distances is None:
+      return None, None
+    if (
+      hm_data.hit_pos_w is None
+      or hm_data.distances is None
+      or hm_data.pos_w is None
+      or hm_data.quat_w is None
+    ):
+      return None, None
+
+    hit_pos_w = ray_data.hit_pos_w[env_idx : env_idx + 1]
+    ray_dist = ray_data.distances[env_idx : env_idx + 1]
+    hm_hit = hm_data.hit_pos_w[env_idx : env_idx + 1]
+    hm_dist = hm_data.distances[env_idx : env_idx + 1]
+    hm_pos = hm_data.pos_w[env_idx : env_idx + 1]
+    hm_quat = hm_data.quat_w[env_idx : env_idx + 1]
+    stance_z = self.stance_foot_pos_0[env_idx, 2].view(1)
+
+    steppable_cells, near_edge_cells = self._compute_steppability_masks(
+      hm_hit,
+      hm_dist,
+      stance_z,
+      sensor_pos_w=hm_pos,
+      sensor_quat_w=hm_quat,
     )
-    z_pad[:, 1:-1, 1:-1] = z
-    d_pad[:, 1:-1, 1:-1] = d
 
-    z_up = z_pad[:, :-2, 1:-1]
-    z_down = z_pad[:, 2:, 1:-1]
-    z_left = z_pad[:, 1:-1, :-2]
-    z_right = z_pad[:, 1:-1, 2:]
+    num_hm_rays = int(steppable_cells.shape[1])
+    hm_pattern = hm_sensor.cfg.pattern
+    size_x, size_y = hm_pattern.size
+    resolution = float(hm_pattern.resolution)
 
-    d_up = d_pad[:, :-2, 1:-1]
-    d_down = d_pad[:, 2:, 1:-1]
-    d_left = d_pad[:, 1:-1, :-2]
-    d_right = d_pad[:, 1:-1, 2:]
+    num_x = self._hm_num_x
+    num_y = self._hm_num_y
+    if num_x <= 0 or num_y <= 0 or num_x * num_y != num_hm_rays:
+      num_x = int(round(size_x / resolution)) + 1
+      num_y = int(round(size_y / resolution)) + 1
+    if num_x * num_y != num_hm_rays:
+      return None, None
 
-    th = self._hm_edge_threshold
-    c_up = (d_up >= 0.0) & (torch.abs(z - z_up) < th)
-    c_down = (d_down >= 0.0) & (torch.abs(z - z_down) < th)
-    c_left = (d_left >= 0.0) & (torch.abs(z - z_left) < th)
-    c_right = (d_right >= 0.0) & (torch.abs(z - z_right) < th)
+    num_rays = int(ray_dist.shape[1])
+    ray_idx_lut = torch.full((1, num_y, num_x), -1, device=self.device, dtype=torch.long)
+    hm_points_rel = hm_hit - hm_pos.unsqueeze(1)
+    hm_points_local = transform_points(hm_points_rel, quat=quat_inv(hm_quat))
+    hm_gx = (hm_points_local[..., 0] + 0.5 * float(size_x)) / resolution
+    hm_gy = (hm_points_local[..., 1] + 0.5 * float(size_y)) / resolution
+    hm_ix = torch.floor(hm_gx + 0.5).to(torch.long)
+    hm_iy = torch.floor(hm_gy + 0.5).to(torch.long)
+    hm_in_bounds = (hm_ix >= 0) & (hm_ix < num_x) & (hm_iy >= 0) & (hm_iy < num_y)
 
-    is_non_edge = c_up & c_down & c_left & c_right & (d >= 0.0)
+    hm_batch = torch.zeros((1, num_hm_rays), device=self.device, dtype=torch.long)
+    hm_ray_ids = torch.arange(num_hm_rays, device=self.device, dtype=torch.long).unsqueeze(0)
+    ray_idx_lut[hm_batch[hm_in_bounds], hm_iy[hm_in_bounds], hm_ix[hm_in_bounds]] = hm_ray_ids[hm_in_bounds]
 
-    if stance_z_w is not None and self._hm_max_stance_height_delta > 0.0:
-      stance_z = stance_z_w.view(num_envs, 1, 1)
-      stance_delta_ok = torch.abs(z - stance_z) <= self._hm_max_stance_height_delta
-      is_non_edge = is_non_edge & stance_delta_ok
+    ray_points_rel = hit_pos_w - hm_pos.unsqueeze(1)
+    ray_points_local = transform_points(ray_points_rel, quat=quat_inv(hm_quat))
+    gx = (ray_points_local[..., 0] + 0.5 * float(size_x)) / resolution
+    gy = (ray_points_local[..., 1] + 0.5 * float(size_y)) / resolution
+    ix = torch.floor(gx + 0.5).to(torch.long)
+    iy = torch.floor(gy + 0.5).to(torch.long)
 
-    return is_non_edge.reshape(num_envs, num_rays)
+    in_bounds = (ix >= 0) & (ix < num_x) & (iy >= 0) & (iy < num_y)
+    ix_safe = ix.clamp(min=0, max=num_x - 1)
+    iy_safe = iy.clamp(min=0, max=num_y - 1)
+    batch = torch.zeros((1, num_rays), device=self.device, dtype=torch.long)
+    flat_idx = ray_idx_lut[batch, iy_safe, ix_safe]
+    lut_valid = flat_idx >= 0
+    flat_idx_safe = flat_idx.clamp(min=0, max=num_hm_rays - 1)
+
+    steppable_flat = torch.gather(steppable_cells, dim=1, index=flat_idx_safe)
+    near_edge_flat = torch.gather(near_edge_cells, dim=1, index=flat_idx_safe)
+    valid_mask = in_bounds & lut_valid & (ray_dist >= 0.0)
+
+    steppable_flat = steppable_flat & valid_mask
+    near_edge_flat = near_edge_flat & valid_mask
+    return steppable_flat.squeeze(0), near_edge_flat.squeeze(0)
 
   def _get_heightmap_candidates(
     self,
@@ -431,8 +814,16 @@ class HLIPCommandTerm(CommandTerm):
 
     hit_pos_w = hm_data.hit_pos_w[env_ids]
     distances = hm_data.distances[env_ids]
+    sensor_pos_w = hm_data.pos_w[env_ids]
+    sensor_quat_w = hm_data.quat_w[env_ids]
     stance_z = self.stance_foot_pos_0[env_ids, 2]
-    non_edge = self._compute_non_edge_mask(hit_pos_w, distances, stance_z)
+    non_edge = self._compute_non_edge_mask(
+      hit_pos_w,
+      distances,
+      stance_z,
+      sensor_pos_w=sensor_pos_w,
+      sensor_quat_w=sensor_quat_w,
+    )
     valid_hits = non_edge & (distances >= 0.0)
 
     n, num_rays, _ = hit_pos_w.shape
@@ -450,11 +841,10 @@ class HLIPCommandTerm(CommandTerm):
     local_hits: torch.Tensor,
     valid_hits: torch.Tensor,
   ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Solve a discrete MPC preview over steppable heightmap candidates."""
+    """Solve a discrete MPC preview by minimizing velocity error over feasible candidates."""
     n = len(env_ids)
     horizon = self._mpc_horizon
     num_t = len(self._mpc_t_grid)
-    span = max(self.T_max - self.T_min, 1e-6)
 
     plan_t = torch.full((n, horizon), self._mpc_t_nom, device=self.device)
     plan_foot = torch.zeros(n, horizon, 3, device=self.device)
@@ -499,17 +889,7 @@ class HLIPCommandTerm(CommandTerm):
       vx_pred = dx / t_grid
       vy_pred = (dy - side_offset_e) / t_grid
       vel_err = (vx_pred - cmd_x) ** 2 + (vy_pred - cmd_y) ** 2
-
-      desired_x = cmd_x * t_grid
-      desired_y = side_offset_e + cmd_y * t_grid
-      foot_err = (dx - desired_x) ** 2 + (dy - desired_y) ** 2
-
-      time_err = ((t_grid - self._mpc_t_nom) / span) ** 2
-      cost = (
-        self._mpc_w_vel * vel_err
-        + self._mpc_w_time * time_err
-        + self._mpc_w_foot * foot_err
-      )
+      cost = vel_err
 
       signed_y_ok = (dy * side_sign_e) >= self._mpc_signed_y_min
       feasible = valid & x_ok & y_ok & step_len_ok & signed_y_ok
@@ -593,68 +973,8 @@ class HLIPCommandTerm(CommandTerm):
     best_t, best_foot, best_cost, best_feasible, feasible_steps = self._solve_discrete_mpc(
       env_ids, base_cmd, local_hits, valid_hits
     )
-    best_cmd = base_cmd.clone()
-    fallback_used = torch.zeros(n, dtype=torch.bool, device=self.device)
-
-    unresolved = ~best_feasible
-    if torch.any(unresolved):
-      base_speed = torch.norm(base_cmd, dim=1, keepdim=True)
-      for scale in self._mpc_fallback_scales:
-        ids = unresolved.nonzero(as_tuple=False).flatten()
-        if len(ids) == 0:
-          break
-
-        speed = base_speed[ids] * scale
-        option_cmds = [
-          base_cmd[ids] * scale,
-          torch.cat([speed, torch.zeros_like(speed)], dim=1),
-          torch.cat([-speed, torch.zeros_like(speed)], dim=1),
-          torch.cat([torch.zeros_like(speed), speed], dim=1),
-          torch.cat([torch.zeros_like(speed), -speed], dim=1),
-        ]
-
-        for cmd_option in option_cmds:
-          opt_t, opt_foot, opt_cost, opt_feasible, opt_feas_steps = self._solve_discrete_mpc(
-            env_ids[ids], cmd_option, local_hits[ids], valid_hits[ids]
-          )
-          feasible_local = opt_feasible.nonzero(as_tuple=False).flatten()
-          if len(feasible_local) == 0:
-            continue
-
-          feasible_global = ids[feasible_local]
-          better = opt_cost[feasible_local] < best_cost[feasible_global]
-          if torch.any(better):
-            chosen_local = feasible_local[better]
-            chosen_global = feasible_global[better]
-            best_t[chosen_global] = opt_t[chosen_local]
-            best_foot[chosen_global] = opt_foot[chosen_local]
-            best_cost[chosen_global] = opt_cost[chosen_local]
-            best_feasible[chosen_global] = True
-            feasible_steps[chosen_global] = opt_feas_steps[chosen_local]
-            best_cmd[chosen_global] = cmd_option[chosen_local]
-            fallback_used[chosen_global] = True
-
-        unresolved = ~best_feasible
-
-    final_unresolved = (~best_feasible).nonzero(as_tuple=False).flatten()
-    if len(final_unresolved) > 0:
-      zero_cmd = torch.zeros(len(final_unresolved), 2, device=self.device)
-      zero_t, zero_foot, zero_cost, _, zero_feas_steps = self._solve_discrete_mpc(
-        env_ids[final_unresolved],
-        zero_cmd,
-        local_hits[final_unresolved],
-        valid_hits[final_unresolved],
-      )
-      best_t[final_unresolved] = zero_t
-      best_foot[final_unresolved] = zero_foot
-      best_cost[final_unresolved] = torch.where(
-        torch.isfinite(zero_cost), zero_cost, torch.zeros_like(zero_cost)
-      )
-      feasible_steps[final_unresolved] = zero_feas_steps
-      best_cmd[final_unresolved] = 0.0
-      fallback_used[final_unresolved] = True
-      # Full stop fallback when no non-edge sequence is feasible.
-      self.vel_command[env_ids[final_unresolved], 2] = 0.0
+    best_cmd = base_cmd
+    fallback_used = ~best_feasible
 
     self._mpc_plan_t[env_ids] = best_t
     self._mpc_plan_foothold[env_ids] = best_foot
@@ -665,6 +985,7 @@ class HLIPCommandTerm(CommandTerm):
     self._mpc_feasible_steps[env_ids] = feasible_steps
     self._mpc_fallback_used[env_ids] = fallback_used.float()
     self._mpc_has_plan[env_ids] = True
+    self._mpc_replan_pending[env_ids] = False
     self.vel_command[env_ids, :2] = best_cmd
     self.T[env_ids] = torch.clamp(best_t[:, 0], self.T_min, self.T_max)
     self.full_gait_period[env_ids] = 2.0 * (self.T[env_ids] - self.T_ds)
@@ -684,7 +1005,108 @@ class HLIPCommandTerm(CommandTerm):
       return torch.zeros(self.num_envs, 2, dtype=torch.bool, device=self.device)
     return found > 0
 
-  def _update_stance_swing_idx(self, dt: float) -> None:
+  def _get_stance_contact_state(self, env_ids: torch.Tensor) -> torch.Tensor:
+    """Return stance-foot contact state for the provided environments."""
+    if len(env_ids) == 0:
+      return torch.zeros(0, dtype=torch.bool, device=self.device)
+
+    foot_contact = self._get_foot_contact_state()
+    return torch.gather(
+      foot_contact[env_ids],
+      1,
+      self.stance_idx[env_ids].unsqueeze(1),
+    ).squeeze(1)
+
+  def _start_contact_recompute_cooldown(self, env_ids: torch.Tensor) -> None:
+    """Start post-contact-replan cooldown for the provided environments."""
+    if len(env_ids) == 0 or self._mpc_contact_recompute_grace_s <= 0.0:
+      return
+    self._mpc_contact_recompute_cooldown[env_ids] = self._mpc_contact_recompute_grace_s
+
+  def _recover_stance_from_contact(
+    self,
+    foot_contact: torch.Tensor | None = None,
+  ) -> None:
+    """Recover stance assignment when MPC-assumed stance loses contact.
+
+    If the currently assumed stance foot is not in contact while the other
+    foot is, we switch stance to the contacting foot and trigger MPC replanning.
+    """
+    if (not self._mpc_enabled) or (not self._mpc_contact_recovery_enabled):
+      return
+
+    active_mask = ~self._pending_stance_init
+    if not torch.any(active_mask):
+      return
+
+    if foot_contact is None:
+      foot_contact = self._get_foot_contact_state()
+    stance_contact = torch.gather(
+      foot_contact,
+      1,
+      self.stance_idx.unsqueeze(1),
+    ).squeeze(1)
+    swing_contact = torch.gather(
+      foot_contact,
+      1,
+      self.swing_idx.unsqueeze(1),
+    ).squeeze(1)
+    swing_contact_ready = self._swing_contact_elapsed >= self._touchdown_contact_grace_s
+
+    T_swing = torch.clamp(self.T - self.T_ds, min=1e-6)
+    phase_var = self._swing_elapsed / T_swing
+
+    # Avoid recovering too early in the half-step to reduce contact jitter flips.
+    past_min_elapsed = self._swing_elapsed >= self._mpc_stance_recovery_min_elapsed_s
+    phase_ready = phase_var >= self._touchdown_min_phase
+    # Require sustained swing-foot contact to reduce jitter-driven flips.
+    recover_ids = (
+      active_mask
+      & past_min_elapsed
+      & phase_ready
+      & (~stance_contact)
+      & swing_contact
+      & swing_contact_ready
+      & (self._mpc_contact_recompute_cooldown <= 0.0)
+    ).nonzero(as_tuple=False).flatten()
+    if len(recover_ids) == 0:
+      return
+
+    foot_pos_w = self.robot.data.body_link_pos_w[:, self._foot_body_ids, :]
+    foot_quat_w = self.robot.data.body_link_quat_w[:, self._foot_body_ids, :]
+
+    new_stance = self.swing_idx[recover_ids]
+    new_swing = 1 - new_stance
+
+    self.stance_idx[recover_ids] = new_stance
+    self.swing_idx[recover_ids] = new_swing
+    self._prev_stance_idx[recover_ids] = new_stance
+    self._swing_elapsed[recover_ids] = 0.0
+    self._swing_contact_elapsed[recover_ids] = 0.0
+
+    self.stance_foot_pos_0[recover_ids] = foot_pos_w[recover_ids, new_stance, :]
+    stance_quat = foot_quat_w[recover_ids, new_stance, :]
+    self.stance_foot_ori_quat_0[recover_ids] = stance_quat
+    self.stance_foot_ori_0[recover_ids] = _euler_from_quat(stance_quat)
+
+    swing_pos_w = foot_pos_w[recover_ids, new_swing, :]
+    self.swing_foot_pos_0[recover_ids] = _to_local_frame(
+      swing_pos_w - self.stance_foot_pos_0[recover_ids],
+      self.stance_foot_ori_quat_0[recover_ids],
+    )
+
+    self._prev_foot_contact[recover_ids] = foot_contact[recover_ids]
+    self._mpc_has_plan[recover_ids] = False
+    self._mpc_replan_pending[recover_ids] = True
+
+    self._plan_mpc_transition(recover_ids)
+    self._start_contact_recompute_cooldown(recover_ids)
+
+  def _update_stance_swing_idx(
+    self,
+    dt: float,
+    foot_contact: torch.Tensor | None = None,
+  ) -> None:
     """Update stance/swing indices from touchdown events.
 
     Primary trigger is swing-foot touchdown from contact sensing. A timeout
@@ -696,20 +1118,21 @@ class HLIPCommandTerm(CommandTerm):
     phase_var = self._swing_elapsed / T_swing
 
     trans_ids = torch.empty(0, dtype=torch.long, device=self.device)
-    if self._touchdown_enabled:
-      foot_contact = self._get_foot_contact_state()
+    if self._phase_end_stance_flip_only:
+      # Teacher mode: switch strictly at half-step end.
+      timeout_ids = (phase_var >= 1.0).nonzero(as_tuple=False).flatten()
+      trans_ids = timeout_ids
+    elif self._touchdown_enabled:
+      if foot_contact is None:
+        foot_contact = self._get_foot_contact_state()
       swing_contact = torch.gather(
         foot_contact,
         1,
         self.swing_idx.unsqueeze(1),
       ).squeeze(1)
-      prev_swing_contact = torch.gather(
-        self._prev_foot_contact,
-        1,
-        self.swing_idx.unsqueeze(1),
-      ).squeeze(1)
-
-      touchdown = swing_contact & (~prev_swing_contact)
+      touchdown = swing_contact & (
+        self._swing_contact_elapsed >= self._touchdown_contact_grace_s
+      )
       touchdown_ready = phase_var >= self._touchdown_min_phase
       touchdown_ids = (touchdown & touchdown_ready).nonzero(as_tuple=False).flatten()
 
@@ -768,9 +1191,26 @@ class HLIPCommandTerm(CommandTerm):
       self.stance_idx[trans_ids] = new_stance[trans_ids]
       self.swing_idx[trans_ids] = new_swing[trans_ids]
       self._swing_elapsed[trans_ids] = 0.0
+      self._swing_contact_elapsed[trans_ids] = 0.0
 
       if self._mpc_enabled:
-        self._plan_mpc_transition(trans_ids)
+        # At every stance switch, invalidate the previous horizon.
+        self._mpc_has_plan[trans_ids] = False
+        if (
+          self._phase_end_stance_flip_only
+          or (not self._mpc_replan_wait_for_stance_contact)
+        ):
+          self._mpc_replan_pending[trans_ids] = False
+          self._plan_mpc_transition(trans_ids)
+        else:
+          self._mpc_replan_pending[trans_ids] = True
+
+          stance_contact = self._get_stance_contact_state(trans_ids)
+          cooldown_ready = self._mpc_contact_recompute_cooldown[trans_ids] <= 0.0
+          ready_ids = trans_ids[stance_contact & cooldown_ready]
+          if len(ready_ids) > 0:
+            self._plan_mpc_transition(ready_ids)
+            self._start_contact_recompute_cooldown(ready_ids)
       else:
         self.T[trans_ids] = torch.empty(len(trans_ids), device=self.device).uniform_(
           self.T_min,
@@ -875,27 +1315,40 @@ class HLIPCommandTerm(CommandTerm):
 
     sh_pitch0, sh_roll0, sh_yaw0 = self.cfg.shoulder_ref
     elb0 = self.cfg.elbow_ref
+    wr_roll0, wr_pitch0, wr_yaw0 = self.cfg.wrist_ref
     waist_yaw0 = self.cfg.waist_yaw_ref
+    waist_pitch0 = self.cfg.waist_pitch_ref
+    waist_roll0 = self.cfg.waist_roll_ref
 
     sh_pitch_amp = sh_pitch0 * forward_vel
     sh_roll_amp = sh_roll0 * torch.ones_like(forward_vel)
     sh_yaw_amp = sh_yaw0 * torch.ones_like(forward_vel)
     elb_amp = elb0 * forward_vel
-    waist_amp = waist_yaw0 * torch.ones_like(forward_vel)
+    wr_roll_amp = wr_roll0 * torch.ones_like(forward_vel)
+    wr_pitch_amp = wr_pitch0 * torch.ones_like(forward_vel)
+    wr_yaw_amp = wr_yaw0 * torch.ones_like(forward_vel)
+    waist_yaw_amp = waist_yaw0 * torch.ones_like(forward_vel)
+    waist_pitch_amp = torch.zeros_like(forward_vel)
+    waist_roll_amp = waist_roll0 * torch.ones_like(forward_vel)
 
     amp = torch.stack(
       [
-        waist_amp,
+        waist_yaw_amp,
+        waist_pitch_amp,
+        waist_roll_amp,
         sh_pitch_amp, sh_pitch_amp,   # L/R shoulder pitch
         sh_roll_amp, sh_roll_amp,     # L/R shoulder roll
         sh_yaw_amp, sh_yaw_amp,       # L/R shoulder yaw
         elb_amp, elb_amp,             # L/R elbow
+        wr_roll_amp, wr_roll_amp,     # L/R wrist roll
+        wr_pitch_amp, wr_pitch_amp,   # L/R wrist pitch
+        wr_yaw_amp, wr_yaw_amp,       # L/R wrist yaw
       ],
       dim=1,
     ).to(self.device)
 
     sign = torch.tensor(
-      [1, 1, -1, 1, -1, 1, -1, 1, -1],
+      [1, 1, 1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1],
       device=self.device,
       dtype=torch.float32,
     )
@@ -903,10 +1356,15 @@ class HLIPCommandTerm(CommandTerm):
     offset = torch.tensor(
       [
         math.pi,                       # waist_yaw
+        math.pi / 2,                   # waist_pitch
+        math.pi / 2,                   # waist_roll
         math.pi / 2, math.pi / 2,     # L/R shoulder pitch
         math.pi / 2, math.pi / 2,     # L/R shoulder roll
         0.0, 0.0,                      # L/R shoulder yaw
         math.pi / 2, math.pi / 2,     # L/R elbow
+        math.pi / 2, math.pi / 2,     # L/R wrist roll
+        math.pi / 2, math.pi / 2,     # L/R wrist pitch
+        0.0, 0.0,                      # L/R wrist yaw
       ],
       device=self.device,
       dtype=torch.float32,
@@ -915,9 +1373,28 @@ class HLIPCommandTerm(CommandTerm):
     joint_offset = self.robot.data.default_joint_pos[
       :, self._upper_body_joint_ids
     ]
+    if joint_offset.shape[1] != amp.shape[1]:
+      raise ValueError(
+        "Upper-body reference dimension mismatch: "
+        f"{joint_offset.shape[1]} joints selected, but {amp.shape[1]} "
+        "reference terms configured."
+      )
 
     offset_expanded = offset.unsqueeze(0).expand(N, -1)
     ref = amp * sign * torch.sin(phase.unsqueeze(-1) + offset_expanded) + joint_offset
+
+    # Dynamic upright waist reference: learned by tracking, not hard-locked.
+    # Keep a forward lean offset on pitch while compensating base roll/pitch.
+    base_euler = _euler_from_quat(self.robot.data.root_link_quat_w)
+    if "waist_pitch_joint" in self._upper_body_joint_names:
+      waist_pitch_idx = self._upper_body_joint_names.index("waist_pitch_joint")
+      ref[:, waist_pitch_idx] += (
+        waist_pitch0
+        - self.cfg.waist_upright_pitch_gain * base_euler[:, 1]
+      )
+    if "waist_roll_joint" in self._upper_body_joint_names:
+      waist_roll_idx = self._upper_body_joint_names.index("waist_roll_joint")
+      ref[:, waist_roll_idx] += -self.cfg.waist_upright_roll_gain * base_euler[:, 0]
 
     dphase_dt = 2 * math.pi / self.full_gait_period
     ref_dot = amp * sign * torch.cos(phase.unsqueeze(-1) + offset_expanded) * dphase_dt.unsqueeze(-1)
@@ -1227,9 +1704,11 @@ class HLIPCommandTerm(CommandTerm):
       return
 
     self._mpc_has_plan[env_ids] = False
+    self._mpc_replan_pending[env_ids] = False
     self._mpc_last_cost[env_ids] = 0.0
     self._mpc_feasible_steps[env_ids] = 0.0
     self._mpc_fallback_used[env_ids] = 0.0
+    self._mpc_contact_recompute_cooldown[env_ids] = 0.0
 
     self._mpc_active_foot_target[env_ids] = 0.0
     self._mpc_active_foot_target[env_ids, 1] = -self.y_nom
@@ -1240,40 +1719,132 @@ class HLIPCommandTerm(CommandTerm):
     self._mpc_plan_foothold[env_ids, :, 1] = -self.y_nom
     self._mpc_plan_foothold[env_ids, :, 2] = self.cfg.z_sw_min
 
+  def _finalize_pending_stance_init(self) -> None:
+    """Resolve deferred post-reset stance/swing initialization.
+
+    After reset events mutate the root pose, body-link data is only valid after
+    ``sim.forward()``. This helper finalizes stance/swing anchors once fresh
+    kinematics are available.
+    """
+    init_ids = self._pending_stance_init.nonzero(as_tuple=False).flatten()
+    if len(init_ids) == 0:
+      return
+
+    # Defensive clear: envs waiting for post-reset stance init must never
+    # carry a valid MPC plan from a previous episode.
+    self._reset_mpc_state(init_ids)
+
+    foot_pos_w = self.robot.data.body_link_pos_w[
+      :, self._foot_body_ids, :
+    ]
+    foot_quat_w = self.robot.data.body_link_quat_w[
+      :, self._foot_body_ids, :
+    ]
+    self.stance_foot_pos_0[init_ids] = foot_pos_w[init_ids, 0, :]
+    self.stance_foot_ori_quat_0[init_ids] = foot_quat_w[init_ids, 0, :]
+    self.stance_foot_ori_0[init_ids] = _euler_from_quat(
+      foot_quat_w[init_ids, 0, :]
+    )
+    # Record initial swing foot position in stance-local frame.
+    swing_pos_w = foot_pos_w[init_ids, 1, :]  # swing_idx=1 at init
+    self.swing_foot_pos_0[init_ids] = _to_local_frame(
+      swing_pos_w - self.stance_foot_pos_0[init_ids],
+      self.stance_foot_ori_quat_0[init_ids],
+    )
+    self._pending_stance_init[init_ids] = False
+
+  def prime_for_observation(self) -> None:
+    """Prime command/reference state for reset-time observation computation.
+
+    ``env.reset()`` computes observations before ``command_manager.compute`` is
+    called. To avoid returning all-zero HLIP command-derived observations on the
+    very first spawn, this method initializes stance anchors, optionally builds
+    an MPC plan, and generates reference/actual trajectories without advancing
+    gait phase.
+    """
+    if not bool(torch.any(self._pending_stance_init)):
+      return
+
+    self._finalize_pending_stance_init()
+
+    if self._mpc_enabled:
+      plan_ready_mask = (
+        (~self._pending_stance_init)
+        & (~self._mpc_has_plan)
+        & (~self._mpc_replan_pending)
+      )
+      if self._phase_end_stance_flip_only:
+        # Reset-time priming should be considered the start of a half-step.
+        plan_ready_mask = plan_ready_mask & (self._swing_elapsed <= 1.0e-6)
+
+      plan_ids = plan_ready_mask.nonzero(as_tuple=False).flatten()
+      if len(plan_ids) > 0:
+        self._plan_mpc_transition(plan_ids)
+
+      if not self._phase_end_stance_flip_only:
+        pending_ids = (
+          (~self._pending_stance_init)
+          & (~self._mpc_has_plan)
+          & self._mpc_replan_pending
+        ).nonzero(as_tuple=False).flatten()
+        if len(pending_ids) > 0:
+          stance_contact = self._get_stance_contact_state(pending_ids)
+          ready_ids = pending_ids[stance_contact]
+          if len(ready_ids) > 0:
+            self._plan_mpc_transition(ready_ids)
+
+    self._generate_reference_trajectory()
+    self._get_actual_state()
+
   def _resample_command(self, env_ids: torch.Tensor) -> None:
-    n = len(env_ids)
-    r = torch.empty(n, device=self.device)
+    # Keep the viewer-selected env under manual control; resample others normally.
+    sample_env_ids = env_ids
+    if self._manual_control_enabled():
+      manual_idx = self._manual_control_target_env_idx()
+      sample_env_ids = env_ids[env_ids != manual_idx]
 
-    # Sample velocity command.
-    self.vel_command[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
-    self.vel_command[env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
-    self.vel_command[env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+    n = len(sample_env_ids)
+    if n > 0:
+      r = torch.empty(n, device=self.device)
 
-    # Zero small commands.
-    cmd_mag = (
-      torch.norm(self.vel_command[env_ids, :2], dim=1)
-      + torch.abs(self.vel_command[env_ids, 2])
-    )
-    self.vel_command[env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
+      # Sample velocity command.
+      self.vel_command[sample_env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+      self.vel_command[sample_env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+      self.vel_command[sample_env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
 
-    # Standing fraction.
-    self.is_standing_env[env_ids] = (
-      r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
-    )
-    standing = env_ids[self.is_standing_env[env_ids]]
-    if len(standing) > 0:
-      self.vel_command[standing] = 0.0
+      # Zero small commands.
+      cmd_mag = (
+        torch.norm(self.vel_command[sample_env_ids, :2], dim=1)
+        + torch.abs(self.vel_command[sample_env_ids, 2])
+      )
+      self.vel_command[sample_env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
+
+      # Standing fraction.
+      self.is_standing_env[sample_env_ids] = (
+        r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+      )
+      standing = sample_env_ids[self.is_standing_env[sample_env_ids]]
+      if len(standing) > 0:
+        self.vel_command[standing] = 0.0
+
+    self._apply_manual_control(env_ids)
 
     # Reset gait phase and initialise step time.
     if self._mpc_enabled:
       self.T[env_ids] = self._mpc_t_nom
     else:
-      self.T[env_ids] = r.uniform_(self.T_min, self.T_max)
+      self.T[env_ids] = torch.empty(len(env_ids), device=self.device).uniform_(
+        self.T_min,
+        self.T_max,
+      )
     self.full_gait_period[env_ids] = 2.0 * (self.T[env_ids] - self.T_ds)
     if self.z_sw_max_range is not None:
-      self.z_sw_max_envs[env_ids] = r.uniform_(self.z_sw_max_range[0], self.z_sw_max_range[1])
+      self.z_sw_max_envs[env_ids] = torch.empty(
+        len(env_ids), device=self.device
+      ).uniform_(self.z_sw_max_range[0], self.z_sw_max_range[1])
     self.gait_time[env_ids] = 0.0
     self._swing_elapsed[env_ids] = 0.0
+    self._swing_contact_elapsed[env_ids] = 0.0
     self._prev_foot_contact[env_ids] = False
 
     # Start with left foot as stance (stance_idx=0).
@@ -1287,8 +1858,6 @@ class HLIPCommandTerm(CommandTerm):
     # after the reset event that randomised the root pose).  We defer the
     # stance foot pose read to the first _update_command call via a flag.
     self._pending_stance_init[env_ids] = True
-    self._has_ai_foot_target[env_ids] = False
-    self.ai_foot_target[env_ids] = 0.0
 
     # Reset phase variables.
     self.tp[env_ids] = 0.0
@@ -1305,46 +1874,72 @@ class HLIPCommandTerm(CommandTerm):
   def _update_command(self) -> None:
     dt = self._env.step_dt
 
+    self._mpc_contact_recompute_cooldown = torch.clamp(
+      self._mpc_contact_recompute_cooldown - dt,
+      min=0.0,
+    )
+
     # Deferred stance foot initialisation: body positions are now fresh
     # (sim.forward() has run since the last reset event).
-    init_ids = self._pending_stance_init.nonzero(as_tuple=False).flatten()
-    if len(init_ids) > 0:
-      # Defensive clear: envs waiting for post-reset stance init must never
-      # carry a valid MPC plan from a previous episode.
-      self._reset_mpc_state(init_ids)
+    self._finalize_pending_stance_init()
 
-      foot_pos_w = self.robot.data.body_link_pos_w[
-        :, self._foot_body_ids, :
-      ]
-      foot_quat_w = self.robot.data.body_link_quat_w[
-        :, self._foot_body_ids, :
-      ]
-      self.stance_foot_pos_0[init_ids] = foot_pos_w[init_ids, 0, :]
-      self.stance_foot_ori_quat_0[init_ids] = foot_quat_w[init_ids, 0, :]
-      self.stance_foot_ori_0[init_ids] = _euler_from_quat(
-        foot_quat_w[init_ids, 0, :]
-      )
-      # Record initial swing foot position in stance-local frame.
-      swing_pos_w = foot_pos_w[init_ids, 1, :]  # swing_idx=1 at init
-      self.swing_foot_pos_0[init_ids] = _to_local_frame(
-        swing_pos_w - self.stance_foot_pos_0[init_ids],
-        self.stance_foot_ori_quat_0[init_ids],
-      )
-      self._pending_stance_init[init_ids] = False
+    foot_contact = self._get_foot_contact_state()
+    swing_contact = torch.gather(
+      foot_contact,
+      1,
+      self.swing_idx.unsqueeze(1),
+    ).squeeze(1)
+    self._swing_contact_elapsed = torch.where(
+      swing_contact,
+      self._swing_contact_elapsed + dt,
+      torch.zeros_like(self._swing_contact_elapsed),
+    )
 
     if self._mpc_enabled:
-      plan_ids = (
-        (~self._pending_stance_init) & (~self._mpc_has_plan)
-      ).nonzero(as_tuple=False).flatten()
+      if not self._phase_end_stance_flip_only:
+        self._recover_stance_from_contact(foot_contact)
+
+      plan_ready_mask = (
+        (~self._pending_stance_init)
+        & (~self._mpc_has_plan)
+        & (~self._mpc_replan_pending)
+      )
+      if self._phase_end_stance_flip_only:
+        # Teacher mode: never replan in mid-swing. Only allow plan creation
+        # right after a stance transition/reset when swing time is near zero.
+        start_of_half_step = self._swing_elapsed <= max(float(dt), 1.0e-6)
+        plan_ready_mask = plan_ready_mask & start_of_half_step
+
+      plan_ids = plan_ready_mask.nonzero(as_tuple=False).flatten()
       if len(plan_ids) > 0:
         self._plan_mpc_transition(plan_ids)
+
+      if not self._phase_end_stance_flip_only:
+        pending_ids = (
+          (~self._pending_stance_init)
+          & (~self._mpc_has_plan)
+          & self._mpc_replan_pending
+        ).nonzero(as_tuple=False).flatten()
+        if len(pending_ids) > 0:
+          stance_contact = self._get_stance_contact_state(pending_ids)
+          cooldown_ready = self._mpc_contact_recompute_cooldown[pending_ids] <= 0.0
+          ready_ids = pending_ids[stance_contact & cooldown_ready]
+          if len(ready_ids) > 0:
+            self._plan_mpc_transition(ready_ids)
+            self._start_contact_recompute_cooldown(ready_ids)
+
+    # Apply manual slider command before generating references for this step.
+    self._apply_manual_control()
 
     # Standing envs zero velocity.
     standing = self.is_standing_env.nonzero(as_tuple=False).flatten()
     self.vel_command[standing] = 0.0
 
+    # Keep manual control dominant over standing/random logic.
+    self._apply_manual_control()
+
     # Update phase.
-    self._update_stance_swing_idx(dt)
+    self._update_stance_swing_idx(dt, foot_contact)
 
     # Generate reference and extract actual state.
     self._generate_reference_trajectory()
@@ -1410,23 +2005,6 @@ class HLIPCommandTerm(CommandTerm):
       color=(0.8, 0.2, 0.2, 0.8),
       label="foot_target",
     )
-
-    # Magenta = AI-predicted touchdown target (in stance-local frame -> world).
-    if bool(self._has_ai_foot_target[batch].item()):
-      ai_local = self.ai_foot_target[batch]
-      ai_world = (
-        quat_apply(
-          yaw_quat(self.stance_foot_ori_quat_0[batch].unsqueeze(0)),
-          ai_local.unsqueeze(0),
-        ).squeeze(0)
-        + self.stance_foot_pos_0[batch]
-      )
-      visualizer.add_sphere(
-        ai_world.cpu().numpy(),
-        radius=0.028,
-        color=(0.9, 0.1, 0.9, 0.95),
-        label="ai_touchdown_target",
-      )
 
     # MPC preview: render the full planned horizon in world frame.
     if self._mpc_enabled and bool(self._mpc_has_plan[batch].item()):
@@ -1530,28 +2108,86 @@ class HLIPCommandTerm(CommandTerm):
         label="vel_cmd",
       )
 
+    # Camera rays coloured by MPC steppability classification.
+    if "head_camera_rays" in self._env.scene.sensors:
+      ray_sensor = self._env.scene.sensors["head_camera_rays"]
+      ray_data = ray_sensor.data
+      if (
+        ray_data.hit_pos_w is not None
+        and ray_data.distances is not None
+        and ray_data.pos_w is not None
+        and ray_data.quat_w is not None
+      ):
+        steppable_flat, near_edge_flat = self._classify_camera_rays_by_heightmap(batch)
+
+        frame_pos = ray_data.pos_w[batch]
+        frame_quat = ray_data.quat_w[batch]
+        cam_offset = torch.zeros(3, device=self.device, dtype=frame_pos.dtype)
+        pattern = getattr(ray_sensor.cfg, "pattern", None)
+        if pattern is not None and hasattr(pattern, "pos"):
+          cam_offset = torch.tensor(pattern.pos, device=self.device, dtype=frame_pos.dtype)
+
+        ray_origin = quat_apply(
+          frame_quat.unsqueeze(0), cam_offset.unsqueeze(0)
+        ).squeeze(0) + frame_pos
+        ray_origin_np = ray_origin.cpu().numpy()
+
+        ray_hits = ray_data.hit_pos_w[batch]
+        ray_dist = ray_data.distances[batch]
+        num_rays = int(ray_dist.shape[0])
+        for i in range(num_rays):
+          if float(ray_dist[i].item()) < 0.0:
+            continue
+
+          if near_edge_flat is not None and bool(near_edge_flat[i].item()):
+            color = (1.0, 0.55, 0.0, 0.8)
+          elif steppable_flat is not None and bool(steppable_flat[i].item()):
+            color = (0.2, 1.0, 0.2, 0.65)
+          elif steppable_flat is not None:
+            color = (1.0, 0.2, 0.2, 0.65)
+          else:
+            color = (0.8, 0.8, 0.8, 0.45)
+
+          visualizer.add_arrow(
+            ray_origin_np,
+            ray_hits[i].cpu().numpy(),
+            color=color,
+            width=0.004,
+            label=f"camera_ray_{i}",
+          )
+
     # Heightmap rendering with edge detection
     if "heightmap" in self._env.scene.sensors:
       hm_data = self._env.scene.sensors["heightmap"].data
       if hm_data.hit_pos_w is not None and hm_data.distances is not None:
         hit_pos_b = hm_data.hit_pos_w[batch]
         dists_b = hm_data.distances[batch]
-        non_edge_b = self._compute_non_edge_mask(
+        steppable_b, near_edge_b = self._compute_steppability_masks(
           hit_pos_b.unsqueeze(0),
           dists_b.unsqueeze(0),
           self.stance_foot_pos_0[batch, 2].unsqueeze(0),
-        ).squeeze(0)
+          sensor_pos_w=hm_data.pos_w[batch].unsqueeze(0),
+          sensor_quat_w=hm_data.quat_w[batch].unsqueeze(0),
+        )
+        steppable_b = steppable_b.squeeze(0)
+        near_edge_b = near_edge_b.squeeze(0)
 
         if self._hm_num_x > 0 and self._hm_num_y > 0:
           hit_grid = hit_pos_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x, 3)
           dist_grid = dists_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
-          non_edge_grid = non_edge_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
+          steppable_grid = steppable_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
+          near_edge_grid = near_edge_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
 
           for i in range(self._hm_num_y):
             for j in range(self._hm_num_x):
               if dist_grid[i, j] >= 0:
                 h_pos = hit_grid[i, j]
-                col = (0.0, 1.0, 0.0, 0.8) if non_edge_grid[i, j] else (1.0, 0.0, 0.0, 0.8)
+                if near_edge_grid[i, j]:
+                  col = (1.0, 0.55, 0.0, 0.85)
+                elif steppable_grid[i, j]:
+                  col = (0.0, 1.0, 0.0, 0.8)
+                else:
+                  col = (1.0, 0.0, 0.0, 0.8)
                 visualizer.add_sphere(h_pos, radius=0.02, color=col)
 
 # =====================================================================
@@ -1559,10 +2195,13 @@ class HLIPCommandTerm(CommandTerm):
 # =====================================================================
 
 
-# Default Q weights: 42 entries (21 output pairs × pos/vel).
+# Default Q weights: 58 entries (29 output pairs × pos/vel).
 # Joint order matches planc regex expansion:
-#   waist_yaw, L_shoulder_pitch, R_shoulder_pitch, L_shoulder_roll,
-#   R_shoulder_roll, L_shoulder_yaw, R_shoulder_yaw, L_elbow, R_elbow
+#   waist_yaw, waist_pitch, waist_roll,
+#   L_shoulder_pitch, R_shoulder_pitch, L_shoulder_roll,
+#   R_shoulder_roll, L_shoulder_yaw, R_shoulder_yaw, L_elbow, R_elbow,
+#   L_wrist_roll, R_wrist_roll, L_wrist_pitch, R_wrist_pitch,
+#   L_wrist_yaw, R_wrist_yaw
 HLIP_DEFAULT_Q_WEIGHTS = [
   25.0, 200.0,      # com_x
   300.0, 50.0,      # com_y
@@ -1577,6 +2216,8 @@ HLIP_DEFAULT_Q_WEIGHTS = [
   10.0, 1.0,        # swing_ori_pitch
   400.0, 10.0,      # swing_ori_yaw
   500.0, 10.0,      # waist_yaw
+  500.0, 10.0,      # waist_pitch
+  500.0, 10.0,      # waist_roll
   40.0, 1.0,        # left shoulder pitch
   40.0, 1.0,        # right shoulder pitch
   100.0, 1.0,       # left shoulder roll
@@ -1585,9 +2226,15 @@ HLIP_DEFAULT_Q_WEIGHTS = [
   50.0, 1.0,        # right shoulder yaw
   30.0, 1.0,        # left elbow
   30.0, 1.0,        # right elbow
+  20.0, 1.0,        # left wrist roll
+  20.0, 1.0,        # right wrist roll
+  20.0, 1.0,        # left wrist pitch
+  20.0, 1.0,        # right wrist pitch
+  20.0, 1.0,        # left wrist yaw
+  20.0, 1.0,        # right wrist yaw
 ]
 
-# Default R weights: 21 entries (one per output).
+# Default R weights: 29 entries (one per output).
 # Upper body order matches planc regex expansion.
 HLIP_DEFAULT_R_WEIGHTS = [
   0.1, 0.1, 0.1,         # CoM
@@ -1595,10 +2242,15 @@ HLIP_DEFAULT_R_WEIGHTS = [
   0.05, 0.05, 0.05,      # Swing foot linear
   0.02, 0.02, 0.02,      # Swing foot orientation
   0.1,                    # Waist yaw
+  0.1,                    # Waist pitch
+  0.1,                    # Waist roll
   0.01, 0.01,             # L/R shoulder pitch
   0.01, 0.01,             # L/R shoulder roll
   0.01, 0.01,             # L/R shoulder yaw
   0.01, 0.01,             # L/R elbow
+  0.01, 0.01,             # L/R wrist roll
+  0.01, 0.01,             # L/R wrist pitch
+  0.01, 0.01,             # L/R wrist yaw
 ]
 
 
@@ -1614,6 +2266,8 @@ class HLIPCommandCfg(CommandTermCfg):
 
   upper_body_joint_names: list[str] | str = field(default_factory=lambda: [
     "waist_yaw_joint",
+    "waist_pitch_joint",
+    "waist_roll_joint",
     "left_shoulder_pitch_joint",
     "right_shoulder_pitch_joint",
     "left_shoulder_roll_joint",
@@ -1622,12 +2276,20 @@ class HLIPCommandCfg(CommandTermCfg):
     "right_shoulder_yaw_joint",
     "left_elbow_joint",
     "right_elbow_joint",
+    "left_wrist_roll_joint",
+    "right_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "right_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+    "right_wrist_yaw_joint",
   ])
   """Joint names for upper body reference tracking.
 
   Order matches planc regex expansion:
-    waist_yaw, L/R shoulder_pitch, L/R shoulder_roll,
-    L/R shoulder_yaw, L/R elbow.
+    waist_yaw, waist_pitch, waist_roll,
+    L/R shoulder_pitch, L/R shoulder_roll,
+    L/R shoulder_yaw, L/R elbow,
+    L/R wrist_roll, L/R wrist_pitch, L/R wrist_yaw.
   """
 
   # HLIP dynamics.
@@ -1696,6 +2358,9 @@ class HLIPCommandCfg(CommandTermCfg):
   mpc_edge_height_threshold: float = -1.0
   """Height-difference edge threshold; <0 derives from heightmap resolution."""
 
+  mpc_edge_clearance_distance: float = 0.0
+  """Minimum distance [m] from terrain boundaries for foothold steppability; <=0 disables."""
+
   mpc_max_stance_height_delta: float = -1.0
   """Max |z_hit - z_stance| [m] for steppability; <=0 disables this filter."""
 
@@ -1711,8 +2376,26 @@ class HLIPCommandCfg(CommandTermCfg):
   touchdown_min_phase: float = 0.35
   """Earliest normalized swing phase at which touchdown can trigger switch."""
 
+  touchdown_contact_grace_period_s: float = 0.1
+  """Required continuous swing-foot contact duration [s] before switching stance."""
+
   touchdown_timeout_phase: float = 1.20
   """Fallback forced switch threshold when touchdown is not detected."""
+
+  phase_end_stance_flip_only: bool = False
+  """When true, switch stance only at phase end and skip contact-based recovery/gating."""
+
+  mpc_stance_recovery_min_elapsed_s: float = 0.25
+  """Minimum elapsed half-step time [s] before stance-contact recovery can trigger."""
+
+  mpc_contact_recovery_enabled: bool = True
+  """Allow immediate stance recovery + replan when stance contact is lost."""
+
+  mpc_contact_recompute_grace_period_s: float = 0.3
+  """Cooldown [s] after contact-triggered MPC replan before another can trigger."""
+
+  mpc_replan_wait_for_stance_contact: bool = True
+  """Defer stance-switch replanning until the new stance foot is in contact."""
 
   # Pelvis orientation.
   pelv_pitch_ref: float = 0.0
@@ -1725,8 +2408,23 @@ class HLIPCommandCfg(CommandTermCfg):
   elbow_ref: float = 0.1
   """Elbow swing amplitude scalar."""
 
+  wrist_ref: tuple[float, float, float] = (0.0, 0.0, 0.0)
+  """Wrist (roll, pitch, yaw) amplitude scalars."""
+
   waist_yaw_ref: float = 0.0
   """Waist yaw oscillation amplitude."""
+
+  waist_pitch_ref: float = 0.0
+  """Waist pitch reference offset [rad] applied as a constant lean."""
+
+  waist_roll_ref: float = 0.0
+  """Waist roll oscillation amplitude."""
+
+  waist_upright_pitch_gain: float = 1.0
+  """Gain for pitch compensation to keep torso upright while leaning forward."""
+
+  waist_upright_roll_gain: float = 1.0
+  """Gain for roll compensation to keep torso upright."""
 
   # CLF weights.
   Q_weights: list[float] = field(default_factory=lambda: HLIP_DEFAULT_Q_WEIGHTS)
@@ -1741,6 +2439,9 @@ class HLIPCommandCfg(CommandTermCfg):
   # Velocity command.
   rel_standing_envs: float = 0.05
   """Fraction of environments with zero-velocity command."""
+
+  manual_control: bool = False
+  """Enable viewer sliders for manual velocity command control."""
 
   @dataclass
   class Ranges:

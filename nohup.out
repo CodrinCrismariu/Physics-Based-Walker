@@ -1,0 +1,3859 @@
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+[INFO] <TerminationManager> contains 4 active terms.
++---------------------------------------------+
+|           Active Termination Terms          |
++-------+--------------------------+----------+
+| Index | Name                     | Time Out |
++-------+--------------------------+----------+
+|   0   | time_out                 |   True   |
+|   1   | fell_over                |  False   |
+|   2   | pelvis_too_low           |  False   |
+|   3   | prolonged_double_support |  False   |
++-------+--------------------------+----------+
+
+[INFO] <RewardManager> contains 8 active terms.
++-------------------------------------------+
+|            Active Reward Terms            |
++-------+--------------------------+--------+
+| Index | Name                     | Weight |
++-------+--------------------------+--------+
+|   0   | clf_reward               |   10.0 |
+|   1   | clf_decreasing_condition |   -1.0 |
+|   2   | holonomic_constraint     |    4.0 |
+|   3   | holonomic_constraint_vel |    2.0 |
+|   4   | joint_torques_l2         | -1e-05 |
+|   5   | joint_pos_limits         |   -1.0 |
+|   6   | action_rate_l2           |  -0.01 |
+|   7   | self_collisions          |   -1.0 |
++-------+--------------------------+--------+
+
+[INFO] <NullCurriculumManager> (inactive)
+[INFO] <NullMetricsManager> (inactive)
+[INFO] Enabling resume for distillation to load teacher checkpoint.
+--------------------------------------------------------------------------------
+Resolved observation sets: 
+	 student :  ('student_vec', 'head_camera_depth')
+	 teacher :  ('teacher',)
+--------------------------------------------------------------------------------
+Student Model: CNNModel(
+  (obs_normalizer): EmpiricalNormalization()
+  (mlp): MLP(
+    (0): Linear(in_features=3168, out_features=512, bias=True)
+    (1): ELU(alpha=1.0)
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ELU(alpha=1.0)
+    (4): Linear(in_features=256, out_features=128, bias=True)
+    (5): ELU(alpha=1.0)
+    (6): Linear(in_features=128, out_features=29, bias=True)
+  )
+  (cnns): ModuleDict(
+    (head_camera_depth): CNN(
+      (0): Conv2d(1, 24, kernel_size=(5, 5), stride=(2, 2), padding=(2, 2))
+      (1): BatchNorm2d(24, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (2): ELU(alpha=1.0)
+      (3): Conv2d(24, 32, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1))
+      (4): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (5): ELU(alpha=1.0)
+      (6): Conv2d(32, 48, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      (7): BatchNorm2d(48, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (8): ELU(alpha=1.0)
+      (9): Conv2d(48, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      (10): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (11): ELU(alpha=1.0)
+      (12): Flatten(start_dim=1, end_dim=-1)
+    )
+  )
+)
+Teacher Model: MLPModel(
+  (obs_normalizer): EmpiricalNormalization()
+  (mlp): MLP(
+    (0): Linear(in_features=213, out_features=512, bias=True)
+    (1): ELU(alpha=1.0)
+    (2): Linear(in_features=512, out_features=256, bias=True)
+    (3): ELU(alpha=1.0)
+    (4): Linear(in_features=256, out_features=128, bias=True)
+    (5): ELU(alpha=1.0)
+    (6): Linear(in_features=128, out_features=29, bias=True)
+  )
+)
+Storing git diff for 'Physics-Based-Walker' in: logs/rsl_rl/g1_hlip_clf_distillation/2026-04-15_11-36-21/git/Physics-Based-Walker.diff
+[INFO]: Loading model checkpoint from: /home/codrincrismariu/Documents/Physics-Based-Walker/logs/rsl_rl/g1_hlip_clf/2026-04-14_22-22-14/model_16600.pt
+[INFO]: Loading distillation student checkpoint from: /home/codrincrismariu/Documents/Physics-Based-Walker/logs/rsl_rl/g1_hlip_clf_distillation/2026-04-15_10-39-45/model_120.pt
+[INFO] Loaded distillation student weights.
+################################################################################
+[1m                            Learning iteration 0/500                            [0m 
+
+                            Total steps: 491520 
+                       Steps per second: 21123 
+                        Collection time: 14.418s 
+                          Learning time: 8.851s 
+                     Mean behavior loss: 0.0742
+                            Mean reward: 28.33
+                    Mean episode length: 112.92
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 0.4804
+Episode_Reward/clf_decreasing_condition: -0.0150
+    Episode_Reward/holonomic_constraint: 0.2273
+Episode_Reward/holonomic_constraint_vel: 0.1020
+        Episode_Reward/joint_torques_l2: -0.0014
+        Episode_Reward/joint_pos_limits: -0.0012
+          Episode_Reward/action_rate_l2: -0.0083
+         Episode_Reward/self_collisions: -0.0012
+                    Metrics/hlip/v_mean: 23.7420
+           Episode_Termination/time_out: 4.0750
+          Episode_Termination/fell_over: 0.0000
+     Episode_Termination/pelvis_too_low: 0.8833
+Episode_Termination/prolonged_double_support: 0.0500
+--------------------------------------------------------------------------------
+                         Iteration time: 23.27s
+                           Time elapsed: 00:00:23
+                                    ETA: 03:13:31
+
+################################################################################
+[1m                            Learning iteration 1/500                            [0m 
+
+                            Total steps: 983040 
+                       Steps per second: 22493 
+                        Collection time: 13.157s 
+                          Learning time: 8.695s 
+                     Mean behavior loss: 0.0637
+                            Mean reward: 57.31
+                    Mean episode length: 227.50
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 1.3352
+Episode_Reward/clf_decreasing_condition: -0.0491
+    Episode_Reward/holonomic_constraint: 0.6654
+Episode_Reward/holonomic_constraint_vel: 0.2965
+        Episode_Reward/joint_torques_l2: -0.0043
+        Episode_Reward/joint_pos_limits: -0.0049
+          Episode_Reward/action_rate_l2: -0.0233
+         Episode_Reward/self_collisions: -0.0065
+                    Metrics/hlip/v_mean: 102.9516
+         Metrics/hlip/mpc_selected_cost: 0.4718
+        Metrics/hlip/mpc_feasible_steps: 3.8766
+        Metrics/hlip/mpc_time_deviation: 0.1152
+         Metrics/hlip/mpc_fallback_used: 0.1218
+           Episode_Termination/time_out: 3.6083
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 4.5333
+Episode_Termination/prolonged_double_support: 0.0667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.85s
+                           Time elapsed: 00:00:45
+                                    ETA: 03:07:15
+
+################################################################################
+[1m                            Learning iteration 2/500                            [0m 
+
+                            Total steps: 1474560 
+                       Steps per second: 22450 
+                        Collection time: 13.204s 
+                          Learning time: 8.690s 
+                     Mean behavior loss: 0.0813
+                            Mean reward: 82.20
+                    Mean episode length: 323.85
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 2.1367
+Episode_Reward/clf_decreasing_condition: -0.0745
+    Episode_Reward/holonomic_constraint: 1.0598
+Episode_Reward/holonomic_constraint_vel: 0.4765
+        Episode_Reward/joint_torques_l2: -0.0067
+        Episode_Reward/joint_pos_limits: -0.0073
+          Episode_Reward/action_rate_l2: -0.0343
+         Episode_Reward/self_collisions: -0.0082
+                    Metrics/hlip/v_mean: 112.7489
+         Metrics/hlip/mpc_selected_cost: 0.3945
+        Metrics/hlip/mpc_feasible_steps: 3.9044
+        Metrics/hlip/mpc_time_deviation: 0.1171
+         Metrics/hlip/mpc_fallback_used: 0.0863
+           Episode_Termination/time_out: 3.1417
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.0833
+Episode_Termination/prolonged_double_support: 0.1500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.89s
+                           Time elapsed: 00:01:07
+                                    ETA: 03:05:01
+
+################################################################################
+[1m                            Learning iteration 3/500                            [0m 
+
+                            Total steps: 1966080 
+                       Steps per second: 22437 
+                        Collection time: 13.182s 
+                          Learning time: 8.725s 
+                     Mean behavior loss: 0.0705
+                            Mean reward: 88.37
+                    Mean episode length: 349.75
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 2.7043
+Episode_Reward/clf_decreasing_condition: -0.0899
+    Episode_Reward/holonomic_constraint: 1.3440
+Episode_Reward/holonomic_constraint_vel: 0.6061
+        Episode_Reward/joint_torques_l2: -0.0085
+        Episode_Reward/joint_pos_limits: -0.0094
+          Episode_Reward/action_rate_l2: -0.0405
+         Episode_Reward/self_collisions: -0.0119
+                    Metrics/hlip/v_mean: 112.8985
+         Metrics/hlip/mpc_selected_cost: 0.4101
+        Metrics/hlip/mpc_feasible_steps: 3.9284
+        Metrics/hlip/mpc_time_deviation: 0.1170
+         Metrics/hlip/mpc_fallback_used: 0.0705
+           Episode_Termination/time_out: 2.5833
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.0417
+Episode_Termination/prolonged_double_support: 0.1417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:01:28
+                                    ETA: 03:03:46
+
+################################################################################
+[1m                            Learning iteration 4/500                            [0m 
+
+                            Total steps: 2457600 
+                       Steps per second: 22388 
+                        Collection time: 13.255s 
+                          Learning time: 8.699s 
+                     Mean behavior loss: 0.0991
+                            Mean reward: 103.75
+                    Mean episode length: 405.48
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 2.8934
+Episode_Reward/clf_decreasing_condition: -0.0944
+    Episode_Reward/holonomic_constraint: 1.4143
+Episode_Reward/holonomic_constraint_vel: 0.6412
+        Episode_Reward/joint_torques_l2: -0.0090
+        Episode_Reward/joint_pos_limits: -0.0097
+          Episode_Reward/action_rate_l2: -0.0450
+         Episode_Reward/self_collisions: -0.0110
+                    Metrics/hlip/v_mean: 141.8276
+         Metrics/hlip/mpc_selected_cost: 0.4055
+        Metrics/hlip/mpc_feasible_steps: 3.9116
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0845
+           Episode_Termination/time_out: 2.0083
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.8083
+Episode_Termination/prolonged_double_support: 0.4667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:01:50
+                                    ETA: 03:02:56
+
+################################################################################
+[1m                            Learning iteration 5/500                            [0m 
+
+                            Total steps: 2949120 
+                       Steps per second: 22372 
+                        Collection time: 13.264s 
+                          Learning time: 8.705s 
+                     Mean behavior loss: 0.1089
+                            Mean reward: 106.87
+                    Mean episode length: 420.04
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.1513
+Episode_Reward/clf_decreasing_condition: -0.0991
+    Episode_Reward/holonomic_constraint: 1.5225
+Episode_Reward/holonomic_constraint_vel: 0.6908
+        Episode_Reward/joint_torques_l2: -0.0099
+        Episode_Reward/joint_pos_limits: -0.0108
+          Episode_Reward/action_rate_l2: -0.0516
+         Episode_Reward/self_collisions: -0.0116
+                    Metrics/hlip/v_mean: 163.9013
+         Metrics/hlip/mpc_selected_cost: 0.3872
+        Metrics/hlip/mpc_feasible_steps: 3.9077
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0735
+           Episode_Termination/time_out: 1.5417
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 8.5417
+Episode_Termination/prolonged_double_support: 0.8750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:02:12
+                                    ETA: 03:02:17
+
+################################################################################
+[1m                            Learning iteration 6/500                            [0m 
+
+                            Total steps: 3440640 
+                       Steps per second: 22384 
+                        Collection time: 13.258s 
+                          Learning time: 8.700s 
+                     Mean behavior loss: 0.0936
+                            Mean reward: 112.64
+                    Mean episode length: 446.29
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.2385
+Episode_Reward/clf_decreasing_condition: -0.1064
+    Episode_Reward/holonomic_constraint: 1.5683
+Episode_Reward/holonomic_constraint_vel: 0.7074
+        Episode_Reward/joint_torques_l2: -0.0103
+        Episode_Reward/joint_pos_limits: -0.0110
+          Episode_Reward/action_rate_l2: -0.0530
+         Episode_Reward/self_collisions: -0.0108
+                    Metrics/hlip/v_mean: 154.3017
+         Metrics/hlip/mpc_selected_cost: 0.4141
+        Metrics/hlip/mpc_feasible_steps: 3.9085
+        Metrics/hlip/mpc_time_deviation: 0.1158
+         Metrics/hlip/mpc_fallback_used: 0.0795
+           Episode_Termination/time_out: 0.9667
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.7917
+Episode_Termination/prolonged_double_support: 0.5167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:02:34
+                                    ETA: 03:01:42
+
+################################################################################
+[1m                            Learning iteration 7/500                            [0m 
+
+                            Total steps: 3932160 
+                       Steps per second: 22418 
+                        Collection time: 13.212s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0695
+                            Mean reward: 118.15
+                    Mean episode length: 466.83
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.2785
+Episode_Reward/clf_decreasing_condition: -0.1130
+    Episode_Reward/holonomic_constraint: 1.6198
+Episode_Reward/holonomic_constraint_vel: 0.7287
+        Episode_Reward/joint_torques_l2: -0.0107
+        Episode_Reward/joint_pos_limits: -0.0116
+          Episode_Reward/action_rate_l2: -0.0533
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 144.2597
+         Metrics/hlip/mpc_selected_cost: 0.4876
+        Metrics/hlip/mpc_feasible_steps: 3.8894
+        Metrics/hlip/mpc_time_deviation: 0.1176
+         Metrics/hlip/mpc_fallback_used: 0.0915
+           Episode_Termination/time_out: 0.9167
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 4.8833
+Episode_Termination/prolonged_double_support: 0.1083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:02:56
+                                    ETA: 03:01:08
+
+################################################################################
+[1m                            Learning iteration 8/500                            [0m 
+
+                            Total steps: 4423680 
+                       Steps per second: 22428 
+                        Collection time: 13.203s 
+                          Learning time: 8.713s 
+                     Mean behavior loss: 0.0769
+                            Mean reward: 143.63
+                    Mean episode length: 555.55
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.8265
+Episode_Reward/clf_decreasing_condition: -0.1270
+    Episode_Reward/holonomic_constraint: 1.8814
+Episode_Reward/holonomic_constraint_vel: 0.8469
+        Episode_Reward/joint_torques_l2: -0.0122
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0601
+         Episode_Reward/self_collisions: -0.0144
+                    Metrics/hlip/v_mean: 138.2345
+         Metrics/hlip/mpc_selected_cost: 0.3895
+        Metrics/hlip/mpc_feasible_steps: 3.9135
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0844
+           Episode_Termination/time_out: 0.9000
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 4.3250
+Episode_Termination/prolonged_double_support: 0.3167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:03:18
+                                    ETA: 03:00:37
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                            Learning iteration 9/500                            [0m 
+
+                            Total steps: 4915200 
+                       Steps per second: 22370 
+                        Collection time: 13.243s 
+                          Learning time: 8.729s 
+                     Mean behavior loss: 0.0897
+                            Mean reward: 147.35
+                    Mean episode length: 567.72
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2354
+Episode_Reward/clf_decreasing_condition: -0.1298
+    Episode_Reward/holonomic_constraint: 2.0539
+Episode_Reward/holonomic_constraint_vel: 0.9373
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0137
+          Episode_Reward/action_rate_l2: -0.0625
+         Episode_Reward/self_collisions: -0.0150
+                    Metrics/hlip/v_mean: 155.9804
+         Metrics/hlip/mpc_selected_cost: 0.4403
+        Metrics/hlip/mpc_feasible_steps: 3.9126
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0805
+           Episode_Termination/time_out: 1.5500
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.5500
+Episode_Termination/prolonged_double_support: 0.1500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:03:40
+                                    ETA: 03:00:10
+
+################################################################################
+[1m                           Learning iteration 10/500                            [0m 
+
+                            Total steps: 5406720 
+                       Steps per second: 22380 
+                        Collection time: 13.235s 
+                          Learning time: 8.727s 
+                     Mean behavior loss: 0.1071
+                            Mean reward: 135.57
+                    Mean episode length: 525.26
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1286
+Episode_Reward/clf_decreasing_condition: -0.1258
+    Episode_Reward/holonomic_constraint: 1.9836
+Episode_Reward/holonomic_constraint_vel: 0.9050
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0630
+         Episode_Reward/self_collisions: -0.0141
+                    Metrics/hlip/v_mean: 165.1170
+         Metrics/hlip/mpc_selected_cost: 0.3685
+        Metrics/hlip/mpc_feasible_steps: 3.9048
+        Metrics/hlip/mpc_time_deviation: 0.1160
+         Metrics/hlip/mpc_fallback_used: 0.0793
+           Episode_Termination/time_out: 1.5250
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 7.0583
+Episode_Termination/prolonged_double_support: 0.4333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:04:02
+                                    ETA: 02:59:43
+
+################################################################################
+[1m                           Learning iteration 11/500                            [0m 
+
+                            Total steps: 5898240 
+                       Steps per second: 22352 
+                        Collection time: 13.232s 
+                          Learning time: 8.758s 
+                     Mean behavior loss: 0.0904
+                            Mean reward: 129.30
+                    Mean episode length: 517.04
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9368
+Episode_Reward/clf_decreasing_condition: -0.1270
+    Episode_Reward/holonomic_constraint: 1.9113
+Episode_Reward/holonomic_constraint_vel: 0.8662
+        Episode_Reward/joint_torques_l2: -0.0127
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0648
+         Episode_Reward/self_collisions: -0.0141
+                    Metrics/hlip/v_mean: 171.2312
+         Metrics/hlip/mpc_selected_cost: 0.4068
+        Metrics/hlip/mpc_feasible_steps: 3.9148
+        Metrics/hlip/mpc_time_deviation: 0.1165
+         Metrics/hlip/mpc_fallback_used: 0.0773
+           Episode_Termination/time_out: 1.1333
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 7.2750
+Episode_Termination/prolonged_double_support: 0.4750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.99s
+                           Time elapsed: 00:04:24
+                                    ETA: 02:59:18
+
+################################################################################
+[1m                           Learning iteration 12/500                            [0m 
+
+                            Total steps: 6389760 
+                       Steps per second: 22442 
+                        Collection time: 13.203s 
+                          Learning time: 8.698s 
+                     Mean behavior loss: 0.0757
+                            Mean reward: 162.57
+                    Mean episode length: 626.87
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1684
+Episode_Reward/clf_decreasing_condition: -0.1326
+    Episode_Reward/holonomic_constraint: 2.0181
+Episode_Reward/holonomic_constraint_vel: 0.9182
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0132
+          Episode_Reward/action_rate_l2: -0.0635
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 136.0804
+         Metrics/hlip/mpc_selected_cost: 0.3724
+        Metrics/hlip/mpc_feasible_steps: 3.8899
+        Metrics/hlip/mpc_time_deviation: 0.1147
+         Metrics/hlip/mpc_fallback_used: 0.0984
+           Episode_Termination/time_out: 1.3500
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 4.8000
+Episode_Termination/prolonged_double_support: 0.2917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.90s
+                           Time elapsed: 00:04:46
+                                    ETA: 02:58:51
+
+################################################################################
+[1m                           Learning iteration 13/500                            [0m 
+
+                            Total steps: 6881280 
+                       Steps per second: 22315 
+                        Collection time: 13.232s 
+                          Learning time: 8.793s 
+                     Mean behavior loss: 0.0715
+                            Mean reward: 142.14
+                    Mean episode length: 539.34
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.5904
+Episode_Reward/clf_decreasing_condition: -0.1369
+    Episode_Reward/holonomic_constraint: 2.2180
+Episode_Reward/holonomic_constraint_vel: 1.0145
+        Episode_Reward/joint_torques_l2: -0.0141
+        Episode_Reward/joint_pos_limits: -0.0143
+          Episode_Reward/action_rate_l2: -0.0654
+         Episode_Reward/self_collisions: -0.0146
+                    Metrics/hlip/v_mean: 120.4039
+         Metrics/hlip/mpc_selected_cost: 0.4052
+        Metrics/hlip/mpc_feasible_steps: 3.9260
+        Metrics/hlip/mpc_time_deviation: 0.1150
+         Metrics/hlip/mpc_fallback_used: 0.0678
+           Episode_Termination/time_out: 2.3333
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.0500
+Episode_Termination/prolonged_double_support: 0.2250
+--------------------------------------------------------------------------------
+                         Iteration time: 22.03s
+                           Time elapsed: 00:05:08
+                                    ETA: 02:58:29
+
+################################################################################
+[1m                           Learning iteration 14/500                            [0m 
+
+                            Total steps: 7372800 
+                       Steps per second: 22385 
+                        Collection time: 13.197s 
+                          Learning time: 8.760s 
+                     Mean behavior loss: 0.0846
+                            Mean reward: 126.01
+                    Mean episode length: 491.99
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.5127
+Episode_Reward/clf_decreasing_condition: -0.1302
+    Episode_Reward/holonomic_constraint: 2.1581
+Episode_Reward/holonomic_constraint_vel: 0.9909
+        Episode_Reward/joint_torques_l2: -0.0136
+        Episode_Reward/joint_pos_limits: -0.0137
+          Episode_Reward/action_rate_l2: -0.0636
+         Episode_Reward/self_collisions: -0.0139
+                    Metrics/hlip/v_mean: 140.2025
+         Metrics/hlip/mpc_selected_cost: 0.4075
+        Metrics/hlip/mpc_feasible_steps: 3.9311
+        Metrics/hlip/mpc_time_deviation: 0.1148
+         Metrics/hlip/mpc_fallback_used: 0.0625
+           Episode_Termination/time_out: 2.1417
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.8583
+Episode_Termination/prolonged_double_support: 0.1250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:05:30
+                                    ETA: 02:58:04
+
+################################################################################
+[1m                           Learning iteration 15/500                            [0m 
+
+                            Total steps: 7864320 
+                       Steps per second: 22452 
+                        Collection time: 13.197s 
+                          Learning time: 8.695s 
+                     Mean behavior loss: 0.0952
+                            Mean reward: 125.81
+                    Mean episode length: 484.27
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.7390
+Episode_Reward/clf_decreasing_condition: -0.1168
+    Episode_Reward/holonomic_constraint: 1.8057
+Episode_Reward/holonomic_constraint_vel: 0.8222
+        Episode_Reward/joint_torques_l2: -0.0118
+        Episode_Reward/joint_pos_limits: -0.0124
+          Episode_Reward/action_rate_l2: -0.0591
+         Episode_Reward/self_collisions: -0.0126
+                    Metrics/hlip/v_mean: 171.2303
+         Metrics/hlip/mpc_selected_cost: 0.4134
+        Metrics/hlip/mpc_feasible_steps: 3.9315
+        Metrics/hlip/mpc_time_deviation: 0.1172
+         Metrics/hlip/mpc_fallback_used: 0.0645
+           Episode_Termination/time_out: 0.9500
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 6.8500
+Episode_Termination/prolonged_double_support: 0.4667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.89s
+                           Time elapsed: 00:05:52
+                                    ETA: 02:57:38
+
+################################################################################
+[1m                           Learning iteration 16/500                            [0m 
+
+                            Total steps: 8355840 
+                       Steps per second: 22376 
+                        Collection time: 13.269s 
+                          Learning time: 8.698s 
+                     Mean behavior loss: 0.0963
+                            Mean reward: 111.53
+                    Mean episode length: 445.78
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.7774
+Episode_Reward/clf_decreasing_condition: -0.1209
+    Episode_Reward/holonomic_constraint: 1.8272
+Episode_Reward/holonomic_constraint_vel: 0.8292
+        Episode_Reward/joint_torques_l2: -0.0120
+        Episode_Reward/joint_pos_limits: -0.0127
+          Episode_Reward/action_rate_l2: -0.0611
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 161.9397
+         Metrics/hlip/mpc_selected_cost: 0.4054
+        Metrics/hlip/mpc_feasible_steps: 3.9052
+        Metrics/hlip/mpc_time_deviation: 0.1170
+         Metrics/hlip/mpc_fallback_used: 0.0830
+           Episode_Termination/time_out: 0.8417
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 6.8333
+Episode_Termination/prolonged_double_support: 0.2833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:06:14
+                                    ETA: 02:57:14
+
+################################################################################
+[1m                           Learning iteration 17/500                            [0m 
+
+                            Total steps: 8847360 
+                       Steps per second: 22361 
+                        Collection time: 13.266s 
+                          Learning time: 8.715s 
+                     Mean behavior loss: 0.0789
+                            Mean reward: 146.31
+                    Mean episode length: 561.33
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9549
+Episode_Reward/clf_decreasing_condition: -0.1238
+    Episode_Reward/holonomic_constraint: 1.9080
+Episode_Reward/holonomic_constraint_vel: 0.8694
+        Episode_Reward/joint_torques_l2: -0.0125
+        Episode_Reward/joint_pos_limits: -0.0130
+          Episode_Reward/action_rate_l2: -0.0613
+         Episode_Reward/self_collisions: -0.0135
+                    Metrics/hlip/v_mean: 151.6354
+         Metrics/hlip/mpc_selected_cost: 0.4028
+        Metrics/hlip/mpc_feasible_steps: 3.8738
+        Metrics/hlip/mpc_time_deviation: 0.1144
+         Metrics/hlip/mpc_fallback_used: 0.1017
+           Episode_Termination/time_out: 1.0417
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.8000
+Episode_Termination/prolonged_double_support: 0.2750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:06:36
+                                    ETA: 02:56:51
+
+################################################################################
+[1m                           Learning iteration 18/500                            [0m 
+
+                            Total steps: 9338880 
+                       Steps per second: 22392 
+                        Collection time: 13.247s 
+                          Learning time: 8.704s 
+                     Mean behavior loss: 0.0751
+                            Mean reward: 163.19
+                    Mean episode length: 624.49
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.8763
+Episode_Reward/clf_decreasing_condition: -0.1412
+    Episode_Reward/holonomic_constraint: 2.3356
+Episode_Reward/holonomic_constraint_vel: 1.0666
+        Episode_Reward/joint_torques_l2: -0.0148
+        Episode_Reward/joint_pos_limits: -0.0147
+          Episode_Reward/action_rate_l2: -0.0702
+         Episode_Reward/self_collisions: -0.0146
+                    Metrics/hlip/v_mean: 123.9258
+         Metrics/hlip/mpc_selected_cost: 0.3784
+        Metrics/hlip/mpc_feasible_steps: 3.9260
+        Metrics/hlip/mpc_time_deviation: 0.1174
+         Metrics/hlip/mpc_fallback_used: 0.0711
+           Episode_Termination/time_out: 1.8083
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 4.3250
+Episode_Termination/prolonged_double_support: 0.2000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:06:58
+                                    ETA: 02:56:28
+
+################################################################################
+[1m                           Learning iteration 19/500                            [0m 
+
+                            Total steps: 9830400 
+                       Steps per second: 22370 
+                        Collection time: 13.259s 
+                          Learning time: 8.713s 
+                     Mean behavior loss: 0.0824
+                            Mean reward: 155.06
+                    Mean episode length: 597.77
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.5965
+Episode_Reward/clf_decreasing_condition: -0.1367
+    Episode_Reward/holonomic_constraint: 2.2116
+Episode_Reward/holonomic_constraint_vel: 1.0108
+        Episode_Reward/joint_torques_l2: -0.0141
+        Episode_Reward/joint_pos_limits: -0.0143
+          Episode_Reward/action_rate_l2: -0.0669
+         Episode_Reward/self_collisions: -0.0148
+                    Metrics/hlip/v_mean: 145.9098
+         Metrics/hlip/mpc_selected_cost: 0.4018
+        Metrics/hlip/mpc_feasible_steps: 3.9293
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0657
+           Episode_Termination/time_out: 1.9917
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.6333
+Episode_Termination/prolonged_double_support: 0.1083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:07:20
+                                    ETA: 02:56:05
+
+################################################################################
+[1m                           Learning iteration 20/500                            [0m 
+
+                            Total steps: 10321920 
+                       Steps per second: 22378 
+                        Collection time: 13.272s 
+                          Learning time: 8.692s 
+                     Mean behavior loss: 0.0929
+                            Mean reward: 148.46
+                    Mean episode length: 567.85
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1996
+Episode_Reward/clf_decreasing_condition: -0.1263
+    Episode_Reward/holonomic_constraint: 2.0191
+Episode_Reward/holonomic_constraint_vel: 0.9203
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0656
+         Episode_Reward/self_collisions: -0.0133
+                    Metrics/hlip/v_mean: 153.0627
+         Metrics/hlip/mpc_selected_cost: 0.3680
+        Metrics/hlip/mpc_feasible_steps: 3.8974
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0912
+           Episode_Termination/time_out: 1.6250
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.3167
+Episode_Termination/prolonged_double_support: 0.5500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:07:42
+                                    ETA: 02:55:41
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 21/500                            [0m 
+
+                            Total steps: 10813440 
+                       Steps per second: 22320 
+                        Collection time: 13.225s 
+                          Learning time: 8.795s 
+                     Mean behavior loss: 0.0886
+                            Mean reward: 126.32
+                    Mean episode length: 493.17
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.8899
+Episode_Reward/clf_decreasing_condition: -0.1224
+    Episode_Reward/holonomic_constraint: 1.8854
+Episode_Reward/holonomic_constraint_vel: 0.8543
+        Episode_Reward/joint_torques_l2: -0.0123
+        Episode_Reward/joint_pos_limits: -0.0129
+          Episode_Reward/action_rate_l2: -0.0613
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 170.4681
+         Metrics/hlip/mpc_selected_cost: 0.4096
+        Metrics/hlip/mpc_feasible_steps: 3.9060
+        Metrics/hlip/mpc_time_deviation: 0.1182
+         Metrics/hlip/mpc_fallback_used: 0.0864
+           Episode_Termination/time_out: 1.1583
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 7.0500
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 22.02s
+                           Time elapsed: 00:08:04
+                                    ETA: 02:55:20
+
+################################################################################
+[1m                           Learning iteration 22/500                            [0m 
+
+                            Total steps: 11304960 
+                       Steps per second: 22290 
+                        Collection time: 13.271s 
+                          Learning time: 8.780s 
+                     Mean behavior loss: 0.0862
+                            Mean reward: 144.87
+                    Mean episode length: 552.92
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1502
+Episode_Reward/clf_decreasing_condition: -0.1260
+    Episode_Reward/holonomic_constraint: 1.9931
+Episode_Reward/holonomic_constraint_vel: 0.9083
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0630
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 156.2609
+         Metrics/hlip/mpc_selected_cost: 0.4072
+        Metrics/hlip/mpc_feasible_steps: 3.8823
+        Metrics/hlip/mpc_time_deviation: 0.1165
+         Metrics/hlip/mpc_fallback_used: 0.0959
+           Episode_Termination/time_out: 1.2000
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.5167
+Episode_Termination/prolonged_double_support: 0.2417
+--------------------------------------------------------------------------------
+                         Iteration time: 22.05s
+                           Time elapsed: 00:08:26
+                                    ETA: 02:54:59
+
+################################################################################
+[1m                           Learning iteration 23/500                            [0m 
+
+                            Total steps: 11796480 
+                       Steps per second: 22419 
+                        Collection time: 13.185s 
+                          Learning time: 8.739s 
+                     Mean behavior loss: 0.0752
+                            Mean reward: 150.79
+                    Mean episode length: 573.58
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2592
+Episode_Reward/clf_decreasing_condition: -0.1268
+    Episode_Reward/holonomic_constraint: 2.0452
+Episode_Reward/holonomic_constraint_vel: 0.9346
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0130
+          Episode_Reward/action_rate_l2: -0.0620
+         Episode_Reward/self_collisions: -0.0126
+                    Metrics/hlip/v_mean: 141.3240
+         Metrics/hlip/mpc_selected_cost: 0.4083
+        Metrics/hlip/mpc_feasible_steps: 3.9226
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0731
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.2833
+Episode_Termination/prolonged_double_support: 0.1917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:08:48
+                                    ETA: 02:54:35
+
+################################################################################
+[1m                           Learning iteration 24/500                            [0m 
+
+                            Total steps: 12288000 
+                       Steps per second: 22442 
+                        Collection time: 13.214s 
+                          Learning time: 8.688s 
+                     Mean behavior loss: 0.0828
+                            Mean reward: 142.21
+                    Mean episode length: 549.67
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.5379
+Episode_Reward/clf_decreasing_condition: -0.1337
+    Episode_Reward/holonomic_constraint: 2.1760
+Episode_Reward/holonomic_constraint_vel: 0.9979
+        Episode_Reward/joint_torques_l2: -0.0139
+        Episode_Reward/joint_pos_limits: -0.0144
+          Episode_Reward/action_rate_l2: -0.0675
+         Episode_Reward/self_collisions: -0.0144
+                    Metrics/hlip/v_mean: 147.5903
+         Metrics/hlip/mpc_selected_cost: 0.3854
+        Metrics/hlip/mpc_feasible_steps: 3.9233
+        Metrics/hlip/mpc_time_deviation: 0.1159
+         Metrics/hlip/mpc_fallback_used: 0.0710
+           Episode_Termination/time_out: 1.9667
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.0500
+Episode_Termination/prolonged_double_support: 0.1833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.90s
+                           Time elapsed: 00:09:10
+                                    ETA: 02:54:11
+
+################################################################################
+[1m                           Learning iteration 25/500                            [0m 
+
+                            Total steps: 12779520 
+                       Steps per second: 22393 
+                        Collection time: 13.214s 
+                          Learning time: 8.735s 
+                     Mean behavior loss: 0.0857
+                            Mean reward: 145.01
+                    Mean episode length: 557.15
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1060
+Episode_Reward/clf_decreasing_condition: -0.1267
+    Episode_Reward/holonomic_constraint: 1.9903
+Episode_Reward/holonomic_constraint_vel: 0.9070
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0631
+         Episode_Reward/self_collisions: -0.0150
+                    Metrics/hlip/v_mean: 151.0521
+         Metrics/hlip/mpc_selected_cost: 0.4076
+        Metrics/hlip/mpc_feasible_steps: 3.8920
+        Metrics/hlip/mpc_time_deviation: 0.1154
+         Metrics/hlip/mpc_fallback_used: 0.0862
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 6.6250
+Episode_Termination/prolonged_double_support: 0.2250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:09:32
+                                    ETA: 02:53:48
+
+################################################################################
+[1m                           Learning iteration 26/500                            [0m 
+
+                            Total steps: 13271040 
+                       Steps per second: 22433 
+                        Collection time: 13.210s 
+                          Learning time: 8.700s 
+                     Mean behavior loss: 0.0937
+                            Mean reward: 139.32
+                    Mean episode length: 531.87
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0052
+Episode_Reward/clf_decreasing_condition: -0.1203
+    Episode_Reward/holonomic_constraint: 1.9200
+Episode_Reward/holonomic_constraint_vel: 0.8773
+        Episode_Reward/joint_torques_l2: -0.0123
+        Episode_Reward/joint_pos_limits: -0.0128
+          Episode_Reward/action_rate_l2: -0.0612
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 152.5027
+         Metrics/hlip/mpc_selected_cost: 0.3870
+        Metrics/hlip/mpc_feasible_steps: 3.8980
+        Metrics/hlip/mpc_time_deviation: 0.1141
+         Metrics/hlip/mpc_fallback_used: 0.0888
+           Episode_Termination/time_out: 1.1417
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 6.5500
+Episode_Termination/prolonged_double_support: 0.4833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:09:53
+                                    ETA: 02:53:24
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 27/500                            [0m 
+
+                            Total steps: 13762560 
+                       Steps per second: 22374 
+                        Collection time: 13.231s 
+                          Learning time: 8.737s 
+                     Mean behavior loss: 0.0840
+                            Mean reward: 164.62
+                    Mean episode length: 623.66
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0023
+Episode_Reward/clf_decreasing_condition: -0.1225
+    Episode_Reward/holonomic_constraint: 1.9332
+Episode_Reward/holonomic_constraint_vel: 0.8810
+        Episode_Reward/joint_torques_l2: -0.0125
+        Episode_Reward/joint_pos_limits: -0.0128
+          Episode_Reward/action_rate_l2: -0.0629
+         Episode_Reward/self_collisions: -0.0128
+                    Metrics/hlip/v_mean: 153.8292
+         Metrics/hlip/mpc_selected_cost: 0.3906
+        Metrics/hlip/mpc_feasible_steps: 3.8987
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0843
+           Episode_Termination/time_out: 1.3500
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.0333
+Episode_Termination/prolonged_double_support: 0.2250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:10:15
+                                    ETA: 02:53:02
+
+################################################################################
+[1m                           Learning iteration 28/500                            [0m 
+
+                            Total steps: 14254080 
+                       Steps per second: 22382 
+                        Collection time: 13.245s 
+                          Learning time: 8.715s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 143.35
+                    Mean episode length: 556.15
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2482
+Episode_Reward/clf_decreasing_condition: -0.1277
+    Episode_Reward/holonomic_constraint: 2.0379
+Episode_Reward/holonomic_constraint_vel: 0.9298
+        Episode_Reward/joint_torques_l2: -0.0130
+        Episode_Reward/joint_pos_limits: -0.0128
+          Episode_Reward/action_rate_l2: -0.0631
+         Episode_Reward/self_collisions: -0.0118
+                    Metrics/hlip/v_mean: 141.6378
+         Metrics/hlip/mpc_selected_cost: 0.4129
+        Metrics/hlip/mpc_feasible_steps: 3.9369
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0573
+           Episode_Termination/time_out: 1.5917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.6000
+Episode_Termination/prolonged_double_support: 0.3833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:10:37
+                                    ETA: 02:52:39
+
+################################################################################
+[1m                           Learning iteration 29/500                            [0m 
+
+                            Total steps: 14745600 
+                       Steps per second: 22401 
+                        Collection time: 13.226s 
+                          Learning time: 8.716s 
+                     Mean behavior loss: 0.0791
+                            Mean reward: 143.97
+                    Mean episode length: 552.14
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2394
+Episode_Reward/clf_decreasing_condition: -0.1288
+    Episode_Reward/holonomic_constraint: 2.0520
+Episode_Reward/holonomic_constraint_vel: 0.9333
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0132
+          Episode_Reward/action_rate_l2: -0.0632
+         Episode_Reward/self_collisions: -0.0137
+                    Metrics/hlip/v_mean: 144.7763
+         Metrics/hlip/mpc_selected_cost: 0.4032
+        Metrics/hlip/mpc_feasible_steps: 3.9141
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0811
+           Episode_Termination/time_out: 1.8583
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.7167
+Episode_Termination/prolonged_double_support: 0.2917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:10:59
+                                    ETA: 02:52:16
+
+################################################################################
+[1m                           Learning iteration 30/500                            [0m 
+
+                            Total steps: 15237120 
+                       Steps per second: 22394 
+                        Collection time: 13.254s 
+                          Learning time: 8.694s 
+                     Mean behavior loss: 0.0897
+                            Mean reward: 143.63
+                    Mean episode length: 550.05
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2724
+Episode_Reward/clf_decreasing_condition: -0.1280
+    Episode_Reward/holonomic_constraint: 2.0532
+Episode_Reward/holonomic_constraint_vel: 0.9381
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0640
+         Episode_Reward/self_collisions: -0.0132
+                    Metrics/hlip/v_mean: 154.4706
+         Metrics/hlip/mpc_selected_cost: 0.4104
+        Metrics/hlip/mpc_feasible_steps: 3.9173
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0730
+           Episode_Termination/time_out: 1.5417
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 6.1167
+Episode_Termination/prolonged_double_support: 0.2083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:11:21
+                                    ETA: 02:51:54
+
+################################################################################
+[1m                           Learning iteration 31/500                            [0m 
+
+                            Total steps: 15728640 
+                       Steps per second: 22346 
+                        Collection time: 13.249s 
+                          Learning time: 8.747s 
+                     Mean behavior loss: 0.0880
+                            Mean reward: 130.18
+                    Mean episode length: 513.55
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.7999
+Episode_Reward/clf_decreasing_condition: -0.1175
+    Episode_Reward/holonomic_constraint: 1.8385
+Episode_Reward/holonomic_constraint_vel: 0.8366
+        Episode_Reward/joint_torques_l2: -0.0119
+        Episode_Reward/joint_pos_limits: -0.0124
+          Episode_Reward/action_rate_l2: -0.0600
+         Episode_Reward/self_collisions: -0.0127
+                    Metrics/hlip/v_mean: 153.5719
+         Metrics/hlip/mpc_selected_cost: 0.4152
+        Metrics/hlip/mpc_feasible_steps: 3.8979
+        Metrics/hlip/mpc_time_deviation: 0.1167
+         Metrics/hlip/mpc_fallback_used: 0.0924
+           Episode_Termination/time_out: 1.2417
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 6.9250
+Episode_Termination/prolonged_double_support: 0.2417
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:11:43
+                                    ETA: 02:51:32
+
+################################################################################
+[1m                           Learning iteration 32/500                            [0m 
+
+                            Total steps: 16220160 
+                       Steps per second: 22365 
+                        Collection time: 13.268s 
+                          Learning time: 8.709s 
+                     Mean behavior loss: 0.0862
+                            Mean reward: 139.47
+                    Mean episode length: 537.36
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1031
+Episode_Reward/clf_decreasing_condition: -0.1228
+    Episode_Reward/holonomic_constraint: 1.9661
+Episode_Reward/holonomic_constraint_vel: 0.8982
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0132
+          Episode_Reward/action_rate_l2: -0.0660
+         Episode_Reward/self_collisions: -0.0125
+                    Metrics/hlip/v_mean: 157.9082
+         Metrics/hlip/mpc_selected_cost: 0.3770
+        Metrics/hlip/mpc_feasible_steps: 3.9122
+        Metrics/hlip/mpc_time_deviation: 0.1143
+         Metrics/hlip/mpc_fallback_used: 0.0752
+           Episode_Termination/time_out: 1.2000
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.8833
+Episode_Termination/prolonged_double_support: 0.3083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:12:05
+                                    ETA: 02:51:10
+
+################################################################################
+[1m                           Learning iteration 33/500                            [0m 
+
+                            Total steps: 16711680 
+                       Steps per second: 22427 
+                        Collection time: 13.204s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0796
+                            Mean reward: 135.97
+                    Mean episode length: 526.51
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2446
+Episode_Reward/clf_decreasing_condition: -0.1294
+    Episode_Reward/holonomic_constraint: 2.0469
+Episode_Reward/holonomic_constraint_vel: 0.9343
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0641
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 147.5320
+         Metrics/hlip/mpc_selected_cost: 0.3995
+        Metrics/hlip/mpc_feasible_steps: 3.9136
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0845
+           Episode_Termination/time_out: 1.3750
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.4917
+Episode_Termination/prolonged_double_support: 0.2250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:12:27
+                                    ETA: 02:50:47
+
+################################################################################
+[1m                           Learning iteration 34/500                            [0m 
+
+                            Total steps: 17203200 
+                       Steps per second: 22401 
+                        Collection time: 13.249s 
+                          Learning time: 8.692s 
+                     Mean behavior loss: 0.0824
+                            Mean reward: 146.14
+                    Mean episode length: 563.91
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4389
+Episode_Reward/clf_decreasing_condition: -0.1281
+    Episode_Reward/holonomic_constraint: 2.1205
+Episode_Reward/holonomic_constraint_vel: 0.9719
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0643
+         Episode_Reward/self_collisions: -0.0129
+                    Metrics/hlip/v_mean: 141.0674
+         Metrics/hlip/mpc_selected_cost: 0.3661
+        Metrics/hlip/mpc_feasible_steps: 3.9001
+        Metrics/hlip/mpc_time_deviation: 0.1153
+         Metrics/hlip/mpc_fallback_used: 0.0985
+           Episode_Termination/time_out: 1.6750
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.5333
+Episode_Termination/prolonged_double_support: 0.2500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:12:49
+                                    ETA: 02:50:24
+
+################################################################################
+[1m                           Learning iteration 35/500                            [0m 
+
+                            Total steps: 17694720 
+                       Steps per second: 22375 
+                        Collection time: 13.265s 
+                          Learning time: 8.702s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 142.78
+                    Mean episode length: 552.74
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2118
+Episode_Reward/clf_decreasing_condition: -0.1268
+    Episode_Reward/holonomic_constraint: 2.0292
+Episode_Reward/holonomic_constraint_vel: 0.9266
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0135
+          Episode_Reward/action_rate_l2: -0.0663
+         Episode_Reward/self_collisions: -0.0133
+                    Metrics/hlip/v_mean: 161.2138
+         Metrics/hlip/mpc_selected_cost: 0.4045
+        Metrics/hlip/mpc_feasible_steps: 3.9175
+        Metrics/hlip/mpc_time_deviation: 0.1176
+         Metrics/hlip/mpc_fallback_used: 0.0755
+           Episode_Termination/time_out: 1.5083
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.9000
+Episode_Termination/prolonged_double_support: 0.3417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:13:11
+                                    ETA: 02:50:02
+
+################################################################################
+[1m                           Learning iteration 36/500                            [0m 
+
+                            Total steps: 18186240 
+                       Steps per second: 22399 
+                        Collection time: 13.252s 
+                          Learning time: 8.692s 
+                     Mean behavior loss: 0.0909
+                            Mean reward: 150.63
+                    Mean episode length: 570.33
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3585
+Episode_Reward/clf_decreasing_condition: -0.1274
+    Episode_Reward/holonomic_constraint: 2.0826
+Episode_Reward/holonomic_constraint_vel: 0.9548
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0638
+         Episode_Reward/self_collisions: -0.0125
+                    Metrics/hlip/v_mean: 156.1012
+         Metrics/hlip/mpc_selected_cost: 0.3785
+        Metrics/hlip/mpc_feasible_steps: 3.9070
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0799
+           Episode_Termination/time_out: 1.5583
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 6.0417
+Episode_Termination/prolonged_double_support: 0.5250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:13:33
+                                    ETA: 02:49:39
+
+################################################################################
+[1m                           Learning iteration 37/500                            [0m 
+
+                            Total steps: 18677760 
+                       Steps per second: 22475 
+                        Collection time: 13.172s 
+                          Learning time: 8.698s 
+                     Mean behavior loss: 0.0846
+                            Mean reward: 143.70
+                    Mean episode length: 553.56
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9849
+Episode_Reward/clf_decreasing_condition: -0.1229
+    Episode_Reward/holonomic_constraint: 1.9243
+Episode_Reward/holonomic_constraint_vel: 0.8761
+        Episode_Reward/joint_torques_l2: -0.0125
+        Episode_Reward/joint_pos_limits: -0.0129
+          Episode_Reward/action_rate_l2: -0.0625
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 163.4798
+         Metrics/hlip/mpc_selected_cost: 0.3962
+        Metrics/hlip/mpc_feasible_steps: 3.8874
+        Metrics/hlip/mpc_time_deviation: 0.1182
+         Metrics/hlip/mpc_fallback_used: 0.0989
+           Episode_Termination/time_out: 1.2083
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 6.7333
+Episode_Termination/prolonged_double_support: 0.2500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.87s
+                           Time elapsed: 00:13:55
+                                    ETA: 02:49:16
+
+################################################################################
+[1m                           Learning iteration 38/500                            [0m 
+
+                            Total steps: 19169280 
+                       Steps per second: 22400 
+                        Collection time: 13.236s 
+                          Learning time: 8.707s 
+                     Mean behavior loss: 0.0812
+                            Mean reward: 134.44
+                    Mean episode length: 512.47
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3277
+Episode_Reward/clf_decreasing_condition: -0.1286
+    Episode_Reward/holonomic_constraint: 2.0730
+Episode_Reward/holonomic_constraint_vel: 0.9502
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0643
+         Episode_Reward/self_collisions: -0.0137
+                    Metrics/hlip/v_mean: 147.2687
+         Metrics/hlip/mpc_selected_cost: 0.4049
+        Metrics/hlip/mpc_feasible_steps: 3.9066
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0762
+           Episode_Termination/time_out: 1.4500
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.5500
+Episode_Termination/prolonged_double_support: 0.3000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:14:17
+                                    ETA: 02:48:53
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 39/500                            [0m 
+
+                            Total steps: 19660800 
+                       Steps per second: 22401 
+                        Collection time: 13.235s 
+                          Learning time: 8.706s 
+                     Mean behavior loss: 0.0785
+                            Mean reward: 144.98
+                    Mean episode length: 550.96
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1108
+Episode_Reward/clf_decreasing_condition: -0.1247
+    Episode_Reward/holonomic_constraint: 1.9772
+Episode_Reward/holonomic_constraint_vel: 0.9016
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0128
+          Episode_Reward/action_rate_l2: -0.0621
+         Episode_Reward/self_collisions: -0.0139
+                    Metrics/hlip/v_mean: 145.8449
+         Metrics/hlip/mpc_selected_cost: 0.4108
+        Metrics/hlip/mpc_feasible_steps: 3.9119
+        Metrics/hlip/mpc_time_deviation: 0.1151
+         Metrics/hlip/mpc_fallback_used: 0.0808
+           Episode_Termination/time_out: 1.5333
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.7750
+Episode_Termination/prolonged_double_support: 0.2250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:14:39
+                                    ETA: 02:48:31
+
+################################################################################
+[1m                           Learning iteration 40/500                            [0m 
+
+                            Total steps: 20152320 
+                       Steps per second: 22423 
+                        Collection time: 13.213s 
+                          Learning time: 8.707s 
+                     Mean behavior loss: 0.0852
+                            Mean reward: 154.09
+                    Mean episode length: 578.70
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3379
+Episode_Reward/clf_decreasing_condition: -0.1282
+    Episode_Reward/holonomic_constraint: 2.0766
+Episode_Reward/holonomic_constraint_vel: 0.9515
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0135
+          Episode_Reward/action_rate_l2: -0.0623
+         Episode_Reward/self_collisions: -0.0133
+                    Metrics/hlip/v_mean: 142.6942
+         Metrics/hlip/mpc_selected_cost: 0.3908
+        Metrics/hlip/mpc_feasible_steps: 3.9163
+        Metrics/hlip/mpc_time_deviation: 0.1170
+         Metrics/hlip/mpc_fallback_used: 0.0679
+           Episode_Termination/time_out: 1.5667
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.4417
+Episode_Termination/prolonged_double_support: 0.3917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:15:01
+                                    ETA: 02:48:08
+
+################################################################################
+[1m                           Learning iteration 41/500                            [0m 
+
+                            Total steps: 20643840 
+                       Steps per second: 22412 
+                        Collection time: 13.225s 
+                          Learning time: 8.706s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 130.19
+                    Mean episode length: 501.43
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9827
+Episode_Reward/clf_decreasing_condition: -0.1207
+    Episode_Reward/holonomic_constraint: 1.9183
+Episode_Reward/holonomic_constraint_vel: 0.8747
+        Episode_Reward/joint_torques_l2: -0.0124
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0613
+         Episode_Reward/self_collisions: -0.0140
+                    Metrics/hlip/v_mean: 164.4278
+         Metrics/hlip/mpc_selected_cost: 0.4065
+        Metrics/hlip/mpc_feasible_steps: 3.9080
+        Metrics/hlip/mpc_time_deviation: 0.1177
+         Metrics/hlip/mpc_fallback_used: 0.0841
+           Episode_Termination/time_out: 1.2583
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 6.3833
+Episode_Termination/prolonged_double_support: 0.3833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.93s
+                           Time elapsed: 00:15:23
+                                    ETA: 02:47:46
+
+################################################################################
+[1m                           Learning iteration 42/500                            [0m 
+
+                            Total steps: 21135360 
+                       Steps per second: 22358 
+                        Collection time: 13.268s 
+                          Learning time: 8.715s 
+                     Mean behavior loss: 0.0889
+                            Mean reward: 127.77
+                    Mean episode length: 494.07
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0612
+Episode_Reward/clf_decreasing_condition: -0.1233
+    Episode_Reward/holonomic_constraint: 1.9526
+Episode_Reward/holonomic_constraint_vel: 0.8911
+        Episode_Reward/joint_torques_l2: -0.0126
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0624
+         Episode_Reward/self_collisions: -0.0131
+                    Metrics/hlip/v_mean: 149.8057
+         Metrics/hlip/mpc_selected_cost: 0.3768
+        Metrics/hlip/mpc_feasible_steps: 3.8851
+        Metrics/hlip/mpc_time_deviation: 0.1174
+         Metrics/hlip/mpc_fallback_used: 0.0928
+           Episode_Termination/time_out: 1.3333
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 6.3583
+Episode_Termination/prolonged_double_support: 0.4250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:15:45
+                                    ETA: 02:47:24
+
+################################################################################
+[1m                           Learning iteration 43/500                            [0m 
+
+                            Total steps: 21626880 
+                       Steps per second: 22352 
+                        Collection time: 13.248s 
+                          Learning time: 8.742s 
+                     Mean behavior loss: 0.0845
+                            Mean reward: 139.38
+                    Mean episode length: 528.51
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1138
+Episode_Reward/clf_decreasing_condition: -0.1229
+    Episode_Reward/holonomic_constraint: 1.9750
+Episode_Reward/holonomic_constraint_vel: 0.9030
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0129
+          Episode_Reward/action_rate_l2: -0.0606
+         Episode_Reward/self_collisions: -0.0124
+                    Metrics/hlip/v_mean: 146.3146
+         Metrics/hlip/mpc_selected_cost: 0.3956
+        Metrics/hlip/mpc_feasible_steps: 3.9137
+        Metrics/hlip/mpc_time_deviation: 0.1137
+         Metrics/hlip/mpc_fallback_used: 0.0833
+           Episode_Termination/time_out: 1.4333
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.0000
+Episode_Termination/prolonged_double_support: 0.2583
+--------------------------------------------------------------------------------
+                         Iteration time: 21.99s
+                           Time elapsed: 00:16:07
+                                    ETA: 02:47:02
+
+################################################################################
+[1m                           Learning iteration 44/500                            [0m 
+
+                            Total steps: 22118400 
+                       Steps per second: 22423 
+                        Collection time: 13.227s 
+                          Learning time: 8.693s 
+                     Mean behavior loss: 0.0843
+                            Mean reward: 155.61
+                    Mean episode length: 590.83
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2872
+Episode_Reward/clf_decreasing_condition: -0.1304
+    Episode_Reward/holonomic_constraint: 2.0667
+Episode_Reward/holonomic_constraint_vel: 0.9429
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0647
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 141.6923
+         Metrics/hlip/mpc_selected_cost: 0.4047
+        Metrics/hlip/mpc_feasible_steps: 3.9347
+        Metrics/hlip/mpc_time_deviation: 0.1173
+         Metrics/hlip/mpc_fallback_used: 0.0588
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.5167
+Episode_Termination/prolonged_double_support: 0.4833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:16:28
+                                    ETA: 02:46:39
+
+################################################################################
+[1m                           Learning iteration 45/500                            [0m 
+
+                            Total steps: 22609920 
+                       Steps per second: 22376 
+                        Collection time: 13.264s 
+                          Learning time: 8.701s 
+                     Mean behavior loss: 0.0802
+                            Mean reward: 129.15
+                    Mean episode length: 503.92
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1777
+Episode_Reward/clf_decreasing_condition: -0.1278
+    Episode_Reward/holonomic_constraint: 2.0209
+Episode_Reward/holonomic_constraint_vel: 0.9229
+        Episode_Reward/joint_torques_l2: -0.0130
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0615
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 140.1373
+         Metrics/hlip/mpc_selected_cost: 0.3901
+        Metrics/hlip/mpc_feasible_steps: 3.9054
+        Metrics/hlip/mpc_time_deviation: 0.1161
+         Metrics/hlip/mpc_fallback_used: 0.0820
+           Episode_Termination/time_out: 1.6000
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.8250
+Episode_Termination/prolonged_double_support: 0.1583
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:16:50
+                                    ETA: 02:46:17
+
+################################################################################
+[1m                           Learning iteration 46/500                            [0m 
+
+                            Total steps: 23101440 
+                       Steps per second: 22363 
+                        Collection time: 13.265s 
+                          Learning time: 8.714s 
+                     Mean behavior loss: 0.0873
+                            Mean reward: 124.08
+                    Mean episode length: 480.70
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0936
+Episode_Reward/clf_decreasing_condition: -0.1253
+    Episode_Reward/holonomic_constraint: 1.9762
+Episode_Reward/holonomic_constraint_vel: 0.9008
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0135
+          Episode_Reward/action_rate_l2: -0.0635
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 155.4473
+         Metrics/hlip/mpc_selected_cost: 0.3974
+        Metrics/hlip/mpc_feasible_steps: 3.9142
+        Metrics/hlip/mpc_time_deviation: 0.1177
+         Metrics/hlip/mpc_fallback_used: 0.0756
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.9500
+Episode_Termination/prolonged_double_support: 0.2167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:17:12
+                                    ETA: 02:45:55
+
+################################################################################
+[1m                           Learning iteration 47/500                            [0m 
+
+                            Total steps: 23592960 
+                       Steps per second: 22389 
+                        Collection time: 13.236s 
+                          Learning time: 8.716s 
+                     Mean behavior loss: 0.0874
+                            Mean reward: 128.44
+                    Mean episode length: 499.13
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0306
+Episode_Reward/clf_decreasing_condition: -0.1262
+    Episode_Reward/holonomic_constraint: 1.9523
+Episode_Reward/holonomic_constraint_vel: 0.8868
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0132
+          Episode_Reward/action_rate_l2: -0.0633
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 163.2862
+         Metrics/hlip/mpc_selected_cost: 0.4033
+        Metrics/hlip/mpc_feasible_steps: 3.8869
+        Metrics/hlip/mpc_time_deviation: 0.1151
+         Metrics/hlip/mpc_fallback_used: 0.0999
+           Episode_Termination/time_out: 1.4583
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 6.5083
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:17:34
+                                    ETA: 02:45:33
+
+################################################################################
+[1m                           Learning iteration 48/500                            [0m 
+
+                            Total steps: 24084480 
+                       Steps per second: 22377 
+                        Collection time: 13.257s 
+                          Learning time: 8.708s 
+                     Mean behavior loss: 0.0896
+                            Mean reward: 133.23
+                    Mean episode length: 510.23
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1711
+Episode_Reward/clf_decreasing_condition: -0.1248
+    Episode_Reward/holonomic_constraint: 2.0019
+Episode_Reward/holonomic_constraint_vel: 0.9150
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0627
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 154.2868
+         Metrics/hlip/mpc_selected_cost: 0.3764
+        Metrics/hlip/mpc_feasible_steps: 3.8974
+        Metrics/hlip/mpc_time_deviation: 0.1173
+         Metrics/hlip/mpc_fallback_used: 0.0885
+           Episode_Termination/time_out: 1.4750
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.3000
+Episode_Termination/prolonged_double_support: 0.3333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:17:56
+                                    ETA: 02:45:11
+
+################################################################################
+[1m                           Learning iteration 49/500                            [0m 
+
+                            Total steps: 24576000 
+                       Steps per second: 22413 
+                        Collection time: 13.228s 
+                          Learning time: 8.701s 
+                     Mean behavior loss: 0.0812
+                            Mean reward: 134.06
+                    Mean episode length: 522.32
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2519
+Episode_Reward/clf_decreasing_condition: -0.1289
+    Episode_Reward/holonomic_constraint: 2.0514
+Episode_Reward/holonomic_constraint_vel: 0.9348
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0674
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 160.7089
+         Metrics/hlip/mpc_selected_cost: 0.3933
+        Metrics/hlip/mpc_feasible_steps: 3.8998
+        Metrics/hlip/mpc_time_deviation: 0.1160
+         Metrics/hlip/mpc_fallback_used: 0.0879
+           Episode_Termination/time_out: 1.4750
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.9917
+Episode_Termination/prolonged_double_support: 0.2000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.93s
+                           Time elapsed: 00:18:18
+                                    ETA: 02:44:48
+
+################################################################################
+[1m                           Learning iteration 50/500                            [0m 
+
+                            Total steps: 25067520 
+                       Steps per second: 22424 
+                        Collection time: 13.228s 
+                          Learning time: 8.692s 
+                     Mean behavior loss: 0.0826
+                            Mean reward: 140.83
+                    Mean episode length: 542.59
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1808
+Episode_Reward/clf_decreasing_condition: -0.1286
+    Episode_Reward/holonomic_constraint: 2.0173
+Episode_Reward/holonomic_constraint_vel: 0.9193
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0137
+          Episode_Reward/action_rate_l2: -0.0646
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 152.3954
+         Metrics/hlip/mpc_selected_cost: 0.3839
+        Metrics/hlip/mpc_feasible_steps: 3.8928
+        Metrics/hlip/mpc_time_deviation: 0.1156
+         Metrics/hlip/mpc_fallback_used: 0.0961
+           Episode_Termination/time_out: 1.3250
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.9167
+Episode_Termination/prolonged_double_support: 0.2083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:18:40
+                                    ETA: 02:44:26
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 51/500                            [0m 
+
+                            Total steps: 25559040 
+                       Steps per second: 22296 
+                        Collection time: 13.307s 
+                          Learning time: 8.738s 
+                     Mean behavior loss: 0.0815
+                            Mean reward: 142.84
+                    Mean episode length: 551.32
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2191
+Episode_Reward/clf_decreasing_condition: -0.1279
+    Episode_Reward/holonomic_constraint: 2.0363
+Episode_Reward/holonomic_constraint_vel: 0.9315
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0137
+          Episode_Reward/action_rate_l2: -0.0645
+         Episode_Reward/self_collisions: -0.0144
+                    Metrics/hlip/v_mean: 151.3370
+         Metrics/hlip/mpc_selected_cost: 0.3959
+        Metrics/hlip/mpc_feasible_steps: 3.9149
+        Metrics/hlip/mpc_time_deviation: 0.1159
+         Metrics/hlip/mpc_fallback_used: 0.0675
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0667
+     Episode_Termination/pelvis_too_low: 5.9833
+Episode_Termination/prolonged_double_support: 0.2333
+--------------------------------------------------------------------------------
+                         Iteration time: 22.04s
+                           Time elapsed: 00:19:02
+                                    ETA: 02:44:05
+
+################################################################################
+[1m                           Learning iteration 52/500                            [0m 
+
+                            Total steps: 26050560 
+                       Steps per second: 22426 
+                        Collection time: 13.223s 
+                          Learning time: 8.694s 
+                     Mean behavior loss: 0.0854
+                            Mean reward: 133.18
+                    Mean episode length: 508.75
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0532
+Episode_Reward/clf_decreasing_condition: -0.1223
+    Episode_Reward/holonomic_constraint: 1.9466
+Episode_Reward/holonomic_constraint_vel: 0.8881
+        Episode_Reward/joint_torques_l2: -0.0126
+        Episode_Reward/joint_pos_limits: -0.0130
+          Episode_Reward/action_rate_l2: -0.0636
+         Episode_Reward/self_collisions: -0.0132
+                    Metrics/hlip/v_mean: 152.0744
+         Metrics/hlip/mpc_selected_cost: 0.3935
+        Metrics/hlip/mpc_feasible_steps: 3.8896
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0888
+           Episode_Termination/time_out: 1.2250
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.0583
+Episode_Termination/prolonged_double_support: 0.2833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:19:24
+                                    ETA: 02:43:42
+
+################################################################################
+[1m                           Learning iteration 53/500                            [0m 
+
+                            Total steps: 26542080 
+                       Steps per second: 22359 
+                        Collection time: 13.268s 
+                          Learning time: 8.714s 
+                     Mean behavior loss: 0.0799
+                            Mean reward: 136.50
+                    Mean episode length: 525.67
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3135
+Episode_Reward/clf_decreasing_condition: -0.1239
+    Episode_Reward/holonomic_constraint: 2.0606
+Episode_Reward/holonomic_constraint_vel: 0.9457
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0640
+         Episode_Reward/self_collisions: -0.0137
+                    Metrics/hlip/v_mean: 153.5188
+         Metrics/hlip/mpc_selected_cost: 0.4017
+        Metrics/hlip/mpc_feasible_steps: 3.9075
+        Metrics/hlip/mpc_time_deviation: 0.1169
+         Metrics/hlip/mpc_fallback_used: 0.0876
+           Episode_Termination/time_out: 1.5500
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.4333
+Episode_Termination/prolonged_double_support: 0.3167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:19:46
+                                    ETA: 02:43:20
+
+################################################################################
+[1m                           Learning iteration 54/500                            [0m 
+
+                            Total steps: 27033600 
+                       Steps per second: 22387 
+                        Collection time: 13.252s 
+                          Learning time: 8.703s 
+                     Mean behavior loss: 0.0804
+                            Mean reward: 133.83
+                    Mean episode length: 510.46
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1545
+Episode_Reward/clf_decreasing_condition: -0.1230
+    Episode_Reward/holonomic_constraint: 1.9870
+Episode_Reward/holonomic_constraint_vel: 0.9091
+        Episode_Reward/joint_torques_l2: -0.0127
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0627
+         Episode_Reward/self_collisions: -0.0134
+                    Metrics/hlip/v_mean: 147.2162
+         Metrics/hlip/mpc_selected_cost: 0.3979
+        Metrics/hlip/mpc_feasible_steps: 3.8969
+        Metrics/hlip/mpc_time_deviation: 0.1169
+         Metrics/hlip/mpc_fallback_used: 0.0924
+           Episode_Termination/time_out: 1.4000
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.7083
+Episode_Termination/prolonged_double_support: 0.3167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:20:08
+                                    ETA: 02:42:58
+
+################################################################################
+[1m                           Learning iteration 55/500                            [0m 
+
+                            Total steps: 27525120 
+                       Steps per second: 22376 
+                        Collection time: 13.252s 
+                          Learning time: 8.713s 
+                     Mean behavior loss: 0.0789
+                            Mean reward: 141.39
+                    Mean episode length: 544.00
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3512
+Episode_Reward/clf_decreasing_condition: -0.1270
+    Episode_Reward/holonomic_constraint: 2.0850
+Episode_Reward/holonomic_constraint_vel: 0.9556
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0657
+         Episode_Reward/self_collisions: -0.0149
+                    Metrics/hlip/v_mean: 149.1345
+         Metrics/hlip/mpc_selected_cost: 0.4035
+        Metrics/hlip/mpc_feasible_steps: 3.8857
+        Metrics/hlip/mpc_time_deviation: 0.1131
+         Metrics/hlip/mpc_fallback_used: 0.0894
+           Episode_Termination/time_out: 1.6833
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.9167
+Episode_Termination/prolonged_double_support: 0.2167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:20:30
+                                    ETA: 02:42:36
+
+################################################################################
+[1m                           Learning iteration 56/500                            [0m 
+
+                            Total steps: 28016640 
+                       Steps per second: 22373 
+                        Collection time: 13.249s 
+                          Learning time: 8.720s 
+                     Mean behavior loss: 0.0824
+                            Mean reward: 157.55
+                    Mean episode length: 597.11
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4088
+Episode_Reward/clf_decreasing_condition: -0.1300
+    Episode_Reward/holonomic_constraint: 2.1123
+Episode_Reward/holonomic_constraint_vel: 0.9663
+        Episode_Reward/joint_torques_l2: -0.0137
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0665
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 145.8674
+         Metrics/hlip/mpc_selected_cost: 0.3977
+        Metrics/hlip/mpc_feasible_steps: 3.9182
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0716
+           Episode_Termination/time_out: 1.7000
+          Episode_Termination/fell_over: 0.0000
+     Episode_Termination/pelvis_too_low: 5.2917
+Episode_Termination/prolonged_double_support: 0.1750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:20:52
+                                    ETA: 02:42:14
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 57/500                            [0m 
+
+                            Total steps: 28508160 
+                       Steps per second: 22363 
+                        Collection time: 13.248s 
+                          Learning time: 8.730s 
+                     Mean behavior loss: 0.0800
+                            Mean reward: 158.80
+                    Mean episode length: 593.72
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4202
+Episode_Reward/clf_decreasing_condition: -0.1278
+    Episode_Reward/holonomic_constraint: 2.1109
+Episode_Reward/holonomic_constraint_vel: 0.9678
+        Episode_Reward/joint_torques_l2: -0.0136
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0656
+         Episode_Reward/self_collisions: -0.0139
+                    Metrics/hlip/v_mean: 148.8971
+         Metrics/hlip/mpc_selected_cost: 0.3883
+        Metrics/hlip/mpc_feasible_steps: 3.8976
+        Metrics/hlip/mpc_time_deviation: 0.1172
+         Metrics/hlip/mpc_fallback_used: 0.0913
+           Episode_Termination/time_out: 1.7833
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.9917
+Episode_Termination/prolonged_double_support: 0.1250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:21:14
+                                    ETA: 02:41:52
+
+################################################################################
+[1m                           Learning iteration 58/500                            [0m 
+
+                            Total steps: 28999680 
+                       Steps per second: 22428 
+                        Collection time: 13.213s 
+                          Learning time: 8.702s 
+                     Mean behavior loss: 0.0812
+                            Mean reward: 142.85
+                    Mean episode length: 540.51
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4611
+Episode_Reward/clf_decreasing_condition: -0.1293
+    Episode_Reward/holonomic_constraint: 2.1259
+Episode_Reward/holonomic_constraint_vel: 0.9768
+        Episode_Reward/joint_torques_l2: -0.0137
+        Episode_Reward/joint_pos_limits: -0.0143
+          Episode_Reward/action_rate_l2: -0.0658
+         Episode_Reward/self_collisions: -0.0147
+                    Metrics/hlip/v_mean: 141.5416
+         Metrics/hlip/mpc_selected_cost: 0.3908
+        Metrics/hlip/mpc_feasible_steps: 3.9129
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0791
+           Episode_Termination/time_out: 1.6083
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.3583
+Episode_Termination/prolonged_double_support: 0.1333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:21:36
+                                    ETA: 02:41:30
+
+################################################################################
+[1m                           Learning iteration 59/500                            [0m 
+
+                            Total steps: 29491200 
+                       Steps per second: 22342 
+                        Collection time: 13.273s 
+                          Learning time: 8.726s 
+                     Mean behavior loss: 0.0798
+                            Mean reward: 131.33
+                    Mean episode length: 507.67
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3701
+Episode_Reward/clf_decreasing_condition: -0.1278
+    Episode_Reward/holonomic_constraint: 2.0888
+Episode_Reward/holonomic_constraint_vel: 0.9587
+        Episode_Reward/joint_torques_l2: -0.0136
+        Episode_Reward/joint_pos_limits: -0.0144
+          Episode_Reward/action_rate_l2: -0.0673
+         Episode_Reward/self_collisions: -0.0151
+                    Metrics/hlip/v_mean: 145.1554
+         Metrics/hlip/mpc_selected_cost: 0.3923
+        Metrics/hlip/mpc_feasible_steps: 3.9040
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0801
+           Episode_Termination/time_out: 1.5167
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.3000
+Episode_Termination/prolonged_double_support: 0.4083
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:21:58
+                                    ETA: 02:41:08
+
+################################################################################
+[1m                           Learning iteration 60/500                            [0m 
+
+                            Total steps: 29982720 
+                       Steps per second: 22402 
+                        Collection time: 13.229s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0827
+                            Mean reward: 147.28
+                    Mean episode length: 562.91
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.6484
+Episode_Reward/clf_decreasing_condition: -0.1300
+    Episode_Reward/holonomic_constraint: 2.2023
+Episode_Reward/holonomic_constraint_vel: 1.0140
+        Episode_Reward/joint_torques_l2: -0.0141
+        Episode_Reward/joint_pos_limits: -0.0144
+          Episode_Reward/action_rate_l2: -0.0688
+         Episode_Reward/self_collisions: -0.0134
+                    Metrics/hlip/v_mean: 147.2980
+         Metrics/hlip/mpc_selected_cost: 0.3857
+        Metrics/hlip/mpc_feasible_steps: 3.9053
+        Metrics/hlip/mpc_time_deviation: 0.1173
+         Metrics/hlip/mpc_fallback_used: 0.0910
+           Episode_Termination/time_out: 1.7083
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.2333
+Episode_Termination/prolonged_double_support: 0.2583
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:22:20
+                                    ETA: 02:40:46
+
+################################################################################
+[1m                           Learning iteration 61/500                            [0m 
+
+                            Total steps: 30474240 
+                       Steps per second: 22346 
+                        Collection time: 13.272s 
+                          Learning time: 8.723s 
+                     Mean behavior loss: 0.0799
+                            Mean reward: 132.79
+                    Mean episode length: 514.51
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3333
+Episode_Reward/clf_decreasing_condition: -0.1262
+    Episode_Reward/holonomic_constraint: 2.0658
+Episode_Reward/holonomic_constraint_vel: 0.9476
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0656
+         Episode_Reward/self_collisions: -0.0146
+                    Metrics/hlip/v_mean: 156.0202
+         Metrics/hlip/mpc_selected_cost: 0.3932
+        Metrics/hlip/mpc_feasible_steps: 3.8937
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0829
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 5.6000
+Episode_Termination/prolonged_double_support: 0.2167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.99s
+                           Time elapsed: 00:22:42
+                                    ETA: 02:40:24
+
+################################################################################
+[1m                           Learning iteration 62/500                            [0m 
+
+                            Total steps: 30965760 
+                       Steps per second: 22426 
+                        Collection time: 13.199s 
+                          Learning time: 8.717s 
+                     Mean behavior loss: 0.0816
+                            Mean reward: 146.82
+                    Mean episode length: 561.83
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2901
+Episode_Reward/clf_decreasing_condition: -0.1276
+    Episode_Reward/holonomic_constraint: 2.0557
+Episode_Reward/holonomic_constraint_vel: 0.9416
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0634
+         Episode_Reward/self_collisions: -0.0151
+                    Metrics/hlip/v_mean: 150.7293
+         Metrics/hlip/mpc_selected_cost: 0.4009
+        Metrics/hlip/mpc_feasible_steps: 3.9290
+        Metrics/hlip/mpc_time_deviation: 0.1154
+         Metrics/hlip/mpc_fallback_used: 0.0676
+           Episode_Termination/time_out: 1.5417
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.7917
+Episode_Termination/prolonged_double_support: 0.2083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:23:04
+                                    ETA: 02:40:02
+
+################################################################################
+[1m                           Learning iteration 63/500                            [0m 
+
+                            Total steps: 31457280 
+                       Steps per second: 22361 
+                        Collection time: 13.245s 
+                          Learning time: 8.735s 
+                     Mean behavior loss: 0.0796
+                            Mean reward: 142.62
+                    Mean episode length: 540.36
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3889
+Episode_Reward/clf_decreasing_condition: -0.1296
+    Episode_Reward/holonomic_constraint: 2.0978
+Episode_Reward/holonomic_constraint_vel: 0.9595
+        Episode_Reward/joint_torques_l2: -0.0136
+        Episode_Reward/joint_pos_limits: -0.0140
+          Episode_Reward/action_rate_l2: -0.0653
+         Episode_Reward/self_collisions: -0.0147
+                    Metrics/hlip/v_mean: 137.1529
+         Metrics/hlip/mpc_selected_cost: 0.3855
+        Metrics/hlip/mpc_feasible_steps: 3.8934
+        Metrics/hlip/mpc_time_deviation: 0.1150
+         Metrics/hlip/mpc_fallback_used: 0.0878
+           Episode_Termination/time_out: 1.5500
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.6000
+Episode_Termination/prolonged_double_support: 0.1833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:23:26
+                                    ETA: 02:39:40
+
+################################################################################
+[1m                           Learning iteration 64/500                            [0m 
+
+                            Total steps: 31948800 
+                       Steps per second: 22416 
+                        Collection time: 13.223s 
+                          Learning time: 8.703s 
+                     Mean behavior loss: 0.0778
+                            Mean reward: 148.60
+                    Mean episode length: 570.01
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3472
+Episode_Reward/clf_decreasing_condition: -0.1279
+    Episode_Reward/holonomic_constraint: 2.0803
+Episode_Reward/holonomic_constraint_vel: 0.9514
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0641
+         Episode_Reward/self_collisions: -0.0148
+                    Metrics/hlip/v_mean: 145.8063
+         Metrics/hlip/mpc_selected_cost: 0.3787
+        Metrics/hlip/mpc_feasible_steps: 3.8982
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0982
+           Episode_Termination/time_out: 1.6833
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.6500
+Episode_Termination/prolonged_double_support: 0.2417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.93s
+                           Time elapsed: 00:23:48
+                                    ETA: 02:39:17
+
+################################################################################
+[1m                           Learning iteration 65/500                            [0m 
+
+                            Total steps: 32440320 
+                       Steps per second: 22343 
+                        Collection time: 13.258s 
+                          Learning time: 8.740s 
+                     Mean behavior loss: 0.0804
+                            Mean reward: 151.96
+                    Mean episode length: 581.40
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3981
+Episode_Reward/clf_decreasing_condition: -0.1284
+    Episode_Reward/holonomic_constraint: 2.1037
+Episode_Reward/holonomic_constraint_vel: 0.9640
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0137
+          Episode_Reward/action_rate_l2: -0.0660
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 140.1958
+         Metrics/hlip/mpc_selected_cost: 0.3935
+        Metrics/hlip/mpc_feasible_steps: 3.8971
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0884
+           Episode_Termination/time_out: 1.7667
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.9417
+Episode_Termination/prolonged_double_support: 0.2083
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:24:10
+                                    ETA: 02:38:56
+
+################################################################################
+[1m                           Learning iteration 66/500                            [0m 
+
+                            Total steps: 32931840 
+                       Steps per second: 22406 
+                        Collection time: 13.217s 
+                          Learning time: 8.719s 
+                     Mean behavior loss: 0.0822
+                            Mean reward: 124.18
+                    Mean episode length: 486.75
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3111
+Episode_Reward/clf_decreasing_condition: -0.1283
+    Episode_Reward/holonomic_constraint: 2.0641
+Episode_Reward/holonomic_constraint_vel: 0.9425
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0651
+         Episode_Reward/self_collisions: -0.0157
+                    Metrics/hlip/v_mean: 143.0055
+         Metrics/hlip/mpc_selected_cost: 0.3885
+        Metrics/hlip/mpc_feasible_steps: 3.9201
+        Metrics/hlip/mpc_time_deviation: 0.1159
+         Metrics/hlip/mpc_fallback_used: 0.0712
+           Episode_Termination/time_out: 1.6167
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.9000
+Episode_Termination/prolonged_double_support: 0.2500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:24:32
+                                    ETA: 02:38:33
+
+################################################################################
+[1m                           Learning iteration 67/500                            [0m 
+
+                            Total steps: 33423360 
+                       Steps per second: 22344 
+                        Collection time: 13.248s 
+                          Learning time: 8.749s 
+                     Mean behavior loss: 0.0819
+                            Mean reward: 146.03
+                    Mean episode length: 550.89
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3625
+Episode_Reward/clf_decreasing_condition: -0.1282
+    Episode_Reward/holonomic_constraint: 2.0861
+Episode_Reward/holonomic_constraint_vel: 0.9545
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0655
+         Episode_Reward/self_collisions: -0.0159
+                    Metrics/hlip/v_mean: 152.3423
+         Metrics/hlip/mpc_selected_cost: 0.3849
+        Metrics/hlip/mpc_feasible_steps: 3.9191
+        Metrics/hlip/mpc_time_deviation: 0.1152
+         Metrics/hlip/mpc_fallback_used: 0.0666
+           Episode_Termination/time_out: 1.4667
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.7250
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:24:54
+                                    ETA: 02:38:11
+
+################################################################################
+[1m                           Learning iteration 68/500                            [0m 
+
+                            Total steps: 33914880 
+                       Steps per second: 22414 
+                        Collection time: 13.216s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0815
+                            Mean reward: 137.01
+                    Mean episode length: 523.74
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1192
+Episode_Reward/clf_decreasing_condition: -0.1235
+    Episode_Reward/holonomic_constraint: 1.9751
+Episode_Reward/holonomic_constraint_vel: 0.9033
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0635
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 156.2474
+         Metrics/hlip/mpc_selected_cost: 0.3887
+        Metrics/hlip/mpc_feasible_steps: 3.8936
+        Metrics/hlip/mpc_time_deviation: 0.1167
+         Metrics/hlip/mpc_fallback_used: 0.0866
+           Episode_Termination/time_out: 1.5917
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.8167
+Episode_Termination/prolonged_double_support: 0.2000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.93s
+                           Time elapsed: 00:25:16
+                                    ETA: 02:37:49
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 69/500                            [0m 
+
+                            Total steps: 34406400 
+                       Steps per second: 22365 
+                        Collection time: 13.245s 
+                          Learning time: 8.731s 
+                     Mean behavior loss: 0.0818
+                            Mean reward: 154.53
+                    Mean episode length: 592.19
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3307
+Episode_Reward/clf_decreasing_condition: -0.1234
+    Episode_Reward/holonomic_constraint: 2.0606
+Episode_Reward/holonomic_constraint_vel: 0.9450
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0653
+         Episode_Reward/self_collisions: -0.0149
+                    Metrics/hlip/v_mean: 152.8332
+         Metrics/hlip/mpc_selected_cost: 0.4067
+        Metrics/hlip/mpc_feasible_steps: 3.9150
+        Metrics/hlip/mpc_time_deviation: 0.1160
+         Metrics/hlip/mpc_fallback_used: 0.0828
+           Episode_Termination/time_out: 1.3417
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.6167
+Episode_Termination/prolonged_double_support: 0.2000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:25:38
+                                    ETA: 02:37:27
+
+################################################################################
+[1m                           Learning iteration 70/500                            [0m 
+
+                            Total steps: 34897920 
+                       Steps per second: 22396 
+                        Collection time: 13.236s 
+                          Learning time: 8.711s 
+                     Mean behavior loss: 0.0841
+                            Mean reward: 149.22
+                    Mean episode length: 567.80
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3794
+Episode_Reward/clf_decreasing_condition: -0.1302
+    Episode_Reward/holonomic_constraint: 2.0994
+Episode_Reward/holonomic_constraint_vel: 0.9581
+        Episode_Reward/joint_torques_l2: -0.0136
+        Episode_Reward/joint_pos_limits: -0.0144
+          Episode_Reward/action_rate_l2: -0.0659
+         Episode_Reward/self_collisions: -0.0150
+                    Metrics/hlip/v_mean: 143.1076
+         Metrics/hlip/mpc_selected_cost: 0.3832
+        Metrics/hlip/mpc_feasible_steps: 3.9247
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0742
+           Episode_Termination/time_out: 1.5167
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.8417
+Episode_Termination/prolonged_double_support: 0.3083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:25:59
+                                    ETA: 02:37:05
+
+################################################################################
+[1m                           Learning iteration 71/500                            [0m 
+
+                            Total steps: 35389440 
+                       Steps per second: 22345 
+                        Collection time: 13.287s 
+                          Learning time: 8.710s 
+                     Mean behavior loss: 0.0809
+                            Mean reward: 135.69
+                    Mean episode length: 522.91
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2483
+Episode_Reward/clf_decreasing_condition: -0.1264
+    Episode_Reward/holonomic_constraint: 2.0343
+Episode_Reward/holonomic_constraint_vel: 0.9288
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0652
+         Episode_Reward/self_collisions: -0.0144
+                    Metrics/hlip/v_mean: 154.5121
+         Metrics/hlip/mpc_selected_cost: 0.4064
+        Metrics/hlip/mpc_feasible_steps: 3.8770
+        Metrics/hlip/mpc_time_deviation: 0.1156
+         Metrics/hlip/mpc_fallback_used: 0.0972
+           Episode_Termination/time_out: 1.4833
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.8583
+Episode_Termination/prolonged_double_support: 0.3167
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:26:21
+                                    ETA: 02:36:43
+
+################################################################################
+[1m                           Learning iteration 72/500                            [0m 
+
+                            Total steps: 35880960 
+                       Steps per second: 22337 
+                        Collection time: 13.316s 
+                          Learning time: 8.688s 
+                     Mean behavior loss: 0.0796
+                            Mean reward: 136.15
+                    Mean episode length: 519.84
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4019
+Episode_Reward/clf_decreasing_condition: -0.1272
+    Episode_Reward/holonomic_constraint: 2.0998
+Episode_Reward/holonomic_constraint_vel: 0.9647
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0641
+         Episode_Reward/self_collisions: -0.0135
+                    Metrics/hlip/v_mean: 149.6576
+         Metrics/hlip/mpc_selected_cost: 0.4070
+        Metrics/hlip/mpc_feasible_steps: 3.9070
+        Metrics/hlip/mpc_time_deviation: 0.1183
+         Metrics/hlip/mpc_fallback_used: 0.0819
+           Episode_Termination/time_out: 1.5000
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 5.5917
+Episode_Termination/prolonged_double_support: 0.1917
+--------------------------------------------------------------------------------
+                         Iteration time: 22.00s
+                           Time elapsed: 00:26:43
+                                    ETA: 02:36:22
+
+################################################################################
+[1m                           Learning iteration 73/500                            [0m 
+
+                            Total steps: 36372480 
+                       Steps per second: 22360 
+                        Collection time: 13.272s 
+                          Learning time: 8.709s 
+                     Mean behavior loss: 0.0810
+                            Mean reward: 138.02
+                    Mean episode length: 529.34
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4339
+Episode_Reward/clf_decreasing_condition: -0.1293
+    Episode_Reward/holonomic_constraint: 2.1168
+Episode_Reward/holonomic_constraint_vel: 0.9706
+        Episode_Reward/joint_torques_l2: -0.0137
+        Episode_Reward/joint_pos_limits: -0.0149
+          Episode_Reward/action_rate_l2: -0.0691
+         Episode_Reward/self_collisions: -0.0145
+                    Metrics/hlip/v_mean: 158.6585
+         Metrics/hlip/mpc_selected_cost: 0.3874
+        Metrics/hlip/mpc_feasible_steps: 3.8982
+        Metrics/hlip/mpc_time_deviation: 0.1159
+         Metrics/hlip/mpc_fallback_used: 0.0813
+           Episode_Termination/time_out: 1.5583
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.3917
+Episode_Termination/prolonged_double_support: 0.1667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:27:05
+                                    ETA: 02:36:00
+
+################################################################################
+[1m                           Learning iteration 74/500                            [0m 
+
+                            Total steps: 36864000 
+                       Steps per second: 22404 
+                        Collection time: 13.254s 
+                          Learning time: 8.684s 
+                     Mean behavior loss: 0.0807
+                            Mean reward: 148.38
+                    Mean episode length: 566.79
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3794
+Episode_Reward/clf_decreasing_condition: -0.1295
+    Episode_Reward/holonomic_constraint: 2.1005
+Episode_Reward/holonomic_constraint_vel: 0.9613
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0144
+          Episode_Reward/action_rate_l2: -0.0664
+         Episode_Reward/self_collisions: -0.0142
+                    Metrics/hlip/v_mean: 150.3351
+         Metrics/hlip/mpc_selected_cost: 0.3890
+        Metrics/hlip/mpc_feasible_steps: 3.9061
+        Metrics/hlip/mpc_time_deviation: 0.1171
+         Metrics/hlip/mpc_fallback_used: 0.0844
+           Episode_Termination/time_out: 1.4000
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.8917
+Episode_Termination/prolonged_double_support: 0.3750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:27:27
+                                    ETA: 02:35:38
+
+################################################################################
+[1m                           Learning iteration 75/500                            [0m 
+
+                            Total steps: 37355520 
+                       Steps per second: 22369 
+                        Collection time: 13.262s 
+                          Learning time: 8.710s 
+                     Mean behavior loss: 0.0796
+                            Mean reward: 145.92
+                    Mean episode length: 562.18
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3711
+Episode_Reward/clf_decreasing_condition: -0.1285
+    Episode_Reward/holonomic_constraint: 2.0940
+Episode_Reward/holonomic_constraint_vel: 0.9603
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0141
+          Episode_Reward/action_rate_l2: -0.0669
+         Episode_Reward/self_collisions: -0.0145
+                    Metrics/hlip/v_mean: 148.4369
+         Metrics/hlip/mpc_selected_cost: 0.3547
+        Metrics/hlip/mpc_feasible_steps: 3.9022
+        Metrics/hlip/mpc_time_deviation: 0.1155
+         Metrics/hlip/mpc_fallback_used: 0.0859
+           Episode_Termination/time_out: 1.5500
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.3250
+Episode_Termination/prolonged_double_support: 0.1417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:27:49
+                                    ETA: 02:35:16
+
+################################################################################
+[1m                           Learning iteration 76/500                            [0m 
+
+                            Total steps: 37847040 
+                       Steps per second: 22386 
+                        Collection time: 13.256s 
+                          Learning time: 8.700s 
+                     Mean behavior loss: 0.0841
+                            Mean reward: 138.98
+                    Mean episode length: 536.46
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2864
+Episode_Reward/clf_decreasing_condition: -0.1248
+    Episode_Reward/holonomic_constraint: 2.0491
+Episode_Reward/holonomic_constraint_vel: 0.9390
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0142
+          Episode_Reward/action_rate_l2: -0.0651
+         Episode_Reward/self_collisions: -0.0134
+                    Metrics/hlip/v_mean: 147.8322
+         Metrics/hlip/mpc_selected_cost: 0.3877
+        Metrics/hlip/mpc_feasible_steps: 3.8933
+        Metrics/hlip/mpc_time_deviation: 0.1158
+         Metrics/hlip/mpc_fallback_used: 0.0945
+           Episode_Termination/time_out: 1.5917
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 6.0417
+Episode_Termination/prolonged_double_support: 0.3000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:28:11
+                                    ETA: 02:34:53
+
+################################################################################
+[1m                           Learning iteration 77/500                            [0m 
+
+                            Total steps: 38338560 
+                       Steps per second: 22367 
+                        Collection time: 13.253s 
+                          Learning time: 8.722s 
+                     Mean behavior loss: 0.0800
+                            Mean reward: 139.96
+                    Mean episode length: 529.58
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3713
+Episode_Reward/clf_decreasing_condition: -0.1300
+    Episode_Reward/holonomic_constraint: 2.0953
+Episode_Reward/holonomic_constraint_vel: 0.9553
+        Episode_Reward/joint_torques_l2: -0.0137
+        Episode_Reward/joint_pos_limits: -0.0147
+          Episode_Reward/action_rate_l2: -0.0658
+         Episode_Reward/self_collisions: -0.0140
+                    Metrics/hlip/v_mean: 153.2796
+         Metrics/hlip/mpc_selected_cost: 0.3679
+        Metrics/hlip/mpc_feasible_steps: 3.9270
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0718
+           Episode_Termination/time_out: 1.6167
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.6667
+Episode_Termination/prolonged_double_support: 0.2333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:28:33
+                                    ETA: 02:34:32
+
+################################################################################
+[1m                           Learning iteration 78/500                            [0m 
+
+                            Total steps: 38830080 
+                       Steps per second: 22390 
+                        Collection time: 13.254s 
+                          Learning time: 8.698s 
+                     Mean behavior loss: 0.0812
+                            Mean reward: 162.91
+                    Mean episode length: 612.89
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4020
+Episode_Reward/clf_decreasing_condition: -0.1277
+    Episode_Reward/holonomic_constraint: 2.0992
+Episode_Reward/holonomic_constraint_vel: 0.9632
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0140
+          Episode_Reward/action_rate_l2: -0.0646
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 137.1467
+         Metrics/hlip/mpc_selected_cost: 0.3811
+        Metrics/hlip/mpc_feasible_steps: 3.9135
+        Metrics/hlip/mpc_time_deviation: 0.1165
+         Metrics/hlip/mpc_fallback_used: 0.0797
+           Episode_Termination/time_out: 1.7250
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 5.3333
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:28:55
+                                    ETA: 02:34:09
+
+################################################################################
+[1m                           Learning iteration 79/500                            [0m 
+
+                            Total steps: 39321600 
+                       Steps per second: 22241 
+                        Collection time: 13.291s 
+                          Learning time: 8.809s 
+                     Mean behavior loss: 0.0802
+                            Mean reward: 148.18
+                    Mean episode length: 569.17
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4243
+Episode_Reward/clf_decreasing_condition: -0.1301
+    Episode_Reward/holonomic_constraint: 2.1200
+Episode_Reward/holonomic_constraint_vel: 0.9708
+        Episode_Reward/joint_torques_l2: -0.0137
+        Episode_Reward/joint_pos_limits: -0.0148
+          Episode_Reward/action_rate_l2: -0.0671
+         Episode_Reward/self_collisions: -0.0151
+                    Metrics/hlip/v_mean: 156.0045
+         Metrics/hlip/mpc_selected_cost: 0.3904
+        Metrics/hlip/mpc_feasible_steps: 3.9132
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0749
+           Episode_Termination/time_out: 1.6833
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.9000
+Episode_Termination/prolonged_double_support: 0.1750
+--------------------------------------------------------------------------------
+                         Iteration time: 22.10s
+                           Time elapsed: 00:29:17
+                                    ETA: 02:33:48
+
+################################################################################
+[1m                           Learning iteration 80/500                            [0m 
+
+                            Total steps: 39813120 
+                       Steps per second: 22400 
+                        Collection time: 13.226s 
+                          Learning time: 8.716s 
+                     Mean behavior loss: 0.0811
+                            Mean reward: 129.78
+                    Mean episode length: 500.45
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1278
+Episode_Reward/clf_decreasing_condition: -0.1228
+    Episode_Reward/holonomic_constraint: 1.9772
+Episode_Reward/holonomic_constraint_vel: 0.9041
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0625
+         Episode_Reward/self_collisions: -0.0122
+                    Metrics/hlip/v_mean: 146.1071
+         Metrics/hlip/mpc_selected_cost: 0.3888
+        Metrics/hlip/mpc_feasible_steps: 3.8916
+        Metrics/hlip/mpc_time_deviation: 0.1169
+         Metrics/hlip/mpc_fallback_used: 0.0882
+           Episode_Termination/time_out: 1.4333
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.3583
+Episode_Termination/prolonged_double_support: 0.1917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:29:39
+                                    ETA: 02:33:26
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 81/500                            [0m 
+
+                            Total steps: 40304640 
+                       Steps per second: 22421 
+                        Collection time: 13.212s 
+                          Learning time: 8.711s 
+                     Mean behavior loss: 0.0826
+                            Mean reward: 136.56
+                    Mean episode length: 524.29
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1272
+Episode_Reward/clf_decreasing_condition: -0.1243
+    Episode_Reward/holonomic_constraint: 1.9892
+Episode_Reward/holonomic_constraint_vel: 0.9095
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0139
+          Episode_Reward/action_rate_l2: -0.0645
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 149.3327
+         Metrics/hlip/mpc_selected_cost: 0.4110
+        Metrics/hlip/mpc_feasible_steps: 3.9043
+        Metrics/hlip/mpc_time_deviation: 0.1146
+         Metrics/hlip/mpc_fallback_used: 0.0794
+           Episode_Termination/time_out: 1.7083
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.2417
+Episode_Termination/prolonged_double_support: 0.4417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:30:01
+                                    ETA: 02:33:04
+
+################################################################################
+[1m                           Learning iteration 82/500                            [0m 
+
+                            Total steps: 40796160 
+                       Steps per second: 22366 
+                        Collection time: 13.266s 
+                          Learning time: 8.709s 
+                     Mean behavior loss: 0.0849
+                            Mean reward: 138.12
+                    Mean episode length: 530.12
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2674
+Episode_Reward/clf_decreasing_condition: -0.1251
+    Episode_Reward/holonomic_constraint: 2.0376
+Episode_Reward/holonomic_constraint_vel: 0.9321
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0140
+          Episode_Reward/action_rate_l2: -0.0658
+         Episode_Reward/self_collisions: -0.0128
+                    Metrics/hlip/v_mean: 154.6699
+         Metrics/hlip/mpc_selected_cost: 0.3975
+        Metrics/hlip/mpc_feasible_steps: 3.9195
+        Metrics/hlip/mpc_time_deviation: 0.1160
+         Metrics/hlip/mpc_fallback_used: 0.0771
+           Episode_Termination/time_out: 1.4667
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.6917
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:30:23
+                                    ETA: 02:32:42
+
+################################################################################
+[1m                           Learning iteration 83/500                            [0m 
+
+                            Total steps: 41287680 
+                       Steps per second: 22373 
+                        Collection time: 13.256s 
+                          Learning time: 8.713s 
+                     Mean behavior loss: 0.0782
+                            Mean reward: 132.02
+                    Mean episode length: 509.83
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3338
+Episode_Reward/clf_decreasing_condition: -0.1295
+    Episode_Reward/holonomic_constraint: 2.0868
+Episode_Reward/holonomic_constraint_vel: 0.9526
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0145
+          Episode_Reward/action_rate_l2: -0.0661
+         Episode_Reward/self_collisions: -0.0144
+                    Metrics/hlip/v_mean: 148.7516
+         Metrics/hlip/mpc_selected_cost: 0.3967
+        Metrics/hlip/mpc_feasible_steps: 3.9322
+        Metrics/hlip/mpc_time_deviation: 0.1166
+         Metrics/hlip/mpc_fallback_used: 0.0657
+           Episode_Termination/time_out: 1.6583
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.3500
+Episode_Termination/prolonged_double_support: 0.1583
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:30:45
+                                    ETA: 02:32:20
+
+################################################################################
+[1m                           Learning iteration 84/500                            [0m 
+
+                            Total steps: 41779200 
+                       Steps per second: 22384 
+                        Collection time: 13.251s 
+                          Learning time: 8.707s 
+                     Mean behavior loss: 0.0826
+                            Mean reward: 144.04
+                    Mean episode length: 546.76
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1850
+Episode_Reward/clf_decreasing_condition: -0.1256
+    Episode_Reward/holonomic_constraint: 2.0074
+Episode_Reward/holonomic_constraint_vel: 0.9176
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0641
+         Episode_Reward/self_collisions: -0.0120
+                    Metrics/hlip/v_mean: 150.7162
+         Metrics/hlip/mpc_selected_cost: 0.3936
+        Metrics/hlip/mpc_feasible_steps: 3.9117
+        Metrics/hlip/mpc_time_deviation: 0.1179
+         Metrics/hlip/mpc_fallback_used: 0.0801
+           Episode_Termination/time_out: 1.3167
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 5.8083
+Episode_Termination/prolonged_double_support: 0.3250
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:31:07
+                                    ETA: 02:31:58
+
+################################################################################
+[1m                           Learning iteration 85/500                            [0m 
+
+                            Total steps: 42270720 
+                       Steps per second: 22370 
+                        Collection time: 13.243s 
+                          Learning time: 8.729s 
+                     Mean behavior loss: 0.0799
+                            Mean reward: 135.08
+                    Mean episode length: 519.79
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1576
+Episode_Reward/clf_decreasing_condition: -0.1240
+    Episode_Reward/holonomic_constraint: 1.9969
+Episode_Reward/holonomic_constraint_vel: 0.9144
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0623
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 150.6823
+         Metrics/hlip/mpc_selected_cost: 0.4109
+        Metrics/hlip/mpc_feasible_steps: 3.9170
+        Metrics/hlip/mpc_time_deviation: 0.1175
+         Metrics/hlip/mpc_fallback_used: 0.0759
+           Episode_Termination/time_out: 1.5333
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.7833
+Episode_Termination/prolonged_double_support: 0.1417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:31:29
+                                    ETA: 02:31:36
+
+################################################################################
+[1m                           Learning iteration 86/500                            [0m 
+
+                            Total steps: 42762240 
+                       Steps per second: 22390 
+                        Collection time: 13.246s 
+                          Learning time: 8.706s 
+                     Mean behavior loss: 0.0872
+                            Mean reward: 136.20
+                    Mean episode length: 536.94
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1839
+Episode_Reward/clf_decreasing_condition: -0.1274
+    Episode_Reward/holonomic_constraint: 2.0145
+Episode_Reward/holonomic_constraint_vel: 0.9174
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0635
+         Episode_Reward/self_collisions: -0.0143
+                    Metrics/hlip/v_mean: 146.8530
+         Metrics/hlip/mpc_selected_cost: 0.3990
+        Metrics/hlip/mpc_feasible_steps: 3.9227
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0699
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.9500
+Episode_Termination/prolonged_double_support: 0.3083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:31:51
+                                    ETA: 02:31:14
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 87/500                            [0m 
+
+                            Total steps: 43253760 
+                       Steps per second: 22389 
+                        Collection time: 13.224s 
+                          Learning time: 8.729s 
+                     Mean behavior loss: 0.0811
+                            Mean reward: 125.12
+                    Mean episode length: 491.11
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2365
+Episode_Reward/clf_decreasing_condition: -0.1262
+    Episode_Reward/holonomic_constraint: 2.0344
+Episode_Reward/holonomic_constraint_vel: 0.9299
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0142
+          Episode_Reward/action_rate_l2: -0.0656
+         Episode_Reward/self_collisions: -0.0140
+                    Metrics/hlip/v_mean: 150.7706
+         Metrics/hlip/mpc_selected_cost: 0.3957
+        Metrics/hlip/mpc_feasible_steps: 3.8980
+        Metrics/hlip/mpc_time_deviation: 0.1151
+         Metrics/hlip/mpc_fallback_used: 0.0840
+           Episode_Termination/time_out: 1.4917
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.9583
+Episode_Termination/prolonged_double_support: 0.2833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:32:13
+                                    ETA: 02:30:52
+
+################################################################################
+[1m                           Learning iteration 88/500                            [0m 
+
+                            Total steps: 43745280 
+                       Steps per second: 22378 
+                        Collection time: 13.262s 
+                          Learning time: 8.702s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 126.19
+                    Mean episode length: 492.55
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1137
+Episode_Reward/clf_decreasing_condition: -0.1234
+    Episode_Reward/holonomic_constraint: 1.9733
+Episode_Reward/holonomic_constraint_vel: 0.9007
+        Episode_Reward/joint_torques_l2: -0.0127
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0644
+         Episode_Reward/self_collisions: -0.0128
+                    Metrics/hlip/v_mean: 155.9490
+         Metrics/hlip/mpc_selected_cost: 0.3850
+        Metrics/hlip/mpc_feasible_steps: 3.9180
+        Metrics/hlip/mpc_time_deviation: 0.1149
+         Metrics/hlip/mpc_fallback_used: 0.0771
+           Episode_Termination/time_out: 1.2917
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.7250
+Episode_Termination/prolonged_double_support: 0.2417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:32:35
+                                    ETA: 02:30:30
+
+################################################################################
+[1m                           Learning iteration 89/500                            [0m 
+
+                            Total steps: 44236800 
+                       Steps per second: 22403 
+                        Collection time: 13.226s 
+                          Learning time: 8.714s 
+                     Mean behavior loss: 0.0810
+                            Mean reward: 129.62
+                    Mean episode length: 506.19
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2558
+Episode_Reward/clf_decreasing_condition: -0.1285
+    Episode_Reward/holonomic_constraint: 2.0424
+Episode_Reward/holonomic_constraint_vel: 0.9335
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0138
+          Episode_Reward/action_rate_l2: -0.0643
+         Episode_Reward/self_collisions: -0.0130
+                    Metrics/hlip/v_mean: 150.9031
+         Metrics/hlip/mpc_selected_cost: 0.3927
+        Metrics/hlip/mpc_feasible_steps: 3.9264
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0693
+           Episode_Termination/time_out: 1.5167
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.9250
+Episode_Termination/prolonged_double_support: 0.3917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:32:57
+                                    ETA: 02:30:08
+
+################################################################################
+[1m                           Learning iteration 90/500                            [0m 
+
+                            Total steps: 44728320 
+                       Steps per second: 22351 
+                        Collection time: 13.283s 
+                          Learning time: 8.708s 
+                     Mean behavior loss: 0.0863
+                            Mean reward: 154.54
+                    Mean episode length: 588.04
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.4975
+Episode_Reward/clf_decreasing_condition: -0.1313
+    Episode_Reward/holonomic_constraint: 2.1501
+Episode_Reward/holonomic_constraint_vel: 0.9842
+        Episode_Reward/joint_torques_l2: -0.0139
+        Episode_Reward/joint_pos_limits: -0.0145
+          Episode_Reward/action_rate_l2: -0.0688
+         Episode_Reward/self_collisions: -0.0135
+                    Metrics/hlip/v_mean: 149.1486
+         Metrics/hlip/mpc_selected_cost: 0.3612
+        Metrics/hlip/mpc_feasible_steps: 3.9095
+        Metrics/hlip/mpc_time_deviation: 0.1175
+         Metrics/hlip/mpc_fallback_used: 0.0841
+           Episode_Termination/time_out: 1.7417
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.2917
+Episode_Termination/prolonged_double_support: 0.2667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.99s
+                           Time elapsed: 00:33:19
+                                    ETA: 02:29:46
+
+################################################################################
+[1m                           Learning iteration 91/500                            [0m 
+
+                            Total steps: 45219840 
+                       Steps per second: 22438 
+                        Collection time: 13.210s 
+                          Learning time: 8.695s 
+                     Mean behavior loss: 0.0825
+                            Mean reward: 141.18
+                    Mean episode length: 542.33
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3603
+Episode_Reward/clf_decreasing_condition: -0.1298
+    Episode_Reward/holonomic_constraint: 2.0976
+Episode_Reward/holonomic_constraint_vel: 0.9592
+        Episode_Reward/joint_torques_l2: -0.0135
+        Episode_Reward/joint_pos_limits: -0.0142
+          Episode_Reward/action_rate_l2: -0.0664
+         Episode_Reward/self_collisions: -0.0153
+                    Metrics/hlip/v_mean: 141.8414
+         Metrics/hlip/mpc_selected_cost: 0.3822
+        Metrics/hlip/mpc_feasible_steps: 3.9010
+        Metrics/hlip/mpc_time_deviation: 0.1168
+         Metrics/hlip/mpc_fallback_used: 0.0832
+           Episode_Termination/time_out: 1.5083
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.4333
+Episode_Termination/prolonged_double_support: 0.4333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.90s
+                           Time elapsed: 00:33:41
+                                    ETA: 02:29:23
+
+################################################################################
+[1m                           Learning iteration 92/500                            [0m 
+
+                            Total steps: 45711360 
+                       Steps per second: 22439 
+                        Collection time: 13.196s 
+                          Learning time: 8.709s 
+                     Mean behavior loss: 0.0870
+                            Mean reward: 145.07
+                    Mean episode length: 560.43
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3594
+Episode_Reward/clf_decreasing_condition: -0.1292
+    Episode_Reward/holonomic_constraint: 2.0882
+Episode_Reward/holonomic_constraint_vel: 0.9576
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0649
+         Episode_Reward/self_collisions: -0.0135
+                    Metrics/hlip/v_mean: 145.1600
+         Metrics/hlip/mpc_selected_cost: 0.3959
+        Metrics/hlip/mpc_feasible_steps: 3.9203
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0729
+           Episode_Termination/time_out: 1.3500
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 5.1833
+Episode_Termination/prolonged_double_support: 0.2750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.90s
+                           Time elapsed: 00:34:03
+                                    ETA: 02:29:01
+
+################################################################################
+[1m                           Learning iteration 93/500                            [0m 
+
+                            Total steps: 46202880 
+                       Steps per second: 22372 
+                        Collection time: 13.244s 
+                          Learning time: 8.726s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 122.86
+                    Mean episode length: 480.15
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2284
+Episode_Reward/clf_decreasing_condition: -0.1277
+    Episode_Reward/holonomic_constraint: 2.0355
+Episode_Reward/holonomic_constraint_vel: 0.9343
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0639
+         Episode_Reward/self_collisions: -0.0152
+                    Metrics/hlip/v_mean: 154.0585
+         Metrics/hlip/mpc_selected_cost: 0.3971
+        Metrics/hlip/mpc_feasible_steps: 3.9133
+        Metrics/hlip/mpc_time_deviation: 0.1170
+         Metrics/hlip/mpc_fallback_used: 0.0786
+           Episode_Termination/time_out: 1.4500
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 6.0167
+Episode_Termination/prolonged_double_support: 0.3167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:34:25
+                                    ETA: 02:28:39
+
+################################################################################
+[1m                           Learning iteration 94/500                            [0m 
+
+                            Total steps: 46694400 
+                       Steps per second: 22404 
+                        Collection time: 13.242s 
+                          Learning time: 8.697s 
+                     Mean behavior loss: 0.0919
+                            Mean reward: 141.64
+                    Mean episode length: 542.56
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3442
+Episode_Reward/clf_decreasing_condition: -0.1298
+    Episode_Reward/holonomic_constraint: 2.0838
+Episode_Reward/holonomic_constraint_vel: 0.9514
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0653
+         Episode_Reward/self_collisions: -0.0132
+                    Metrics/hlip/v_mean: 145.0684
+         Metrics/hlip/mpc_selected_cost: 0.4075
+        Metrics/hlip/mpc_feasible_steps: 3.9284
+        Metrics/hlip/mpc_time_deviation: 0.1161
+         Metrics/hlip/mpc_fallback_used: 0.0652
+           Episode_Termination/time_out: 1.6250
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 6.2750
+Episode_Termination/prolonged_double_support: 0.5083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:34:47
+                                    ETA: 02:28:17
+
+################################################################################
+[1m                           Learning iteration 95/500                            [0m 
+
+                            Total steps: 47185920 
+                       Steps per second: 22362 
+                        Collection time: 13.254s 
+                          Learning time: 8.726s 
+                     Mean behavior loss: 0.0848
+                            Mean reward: 124.54
+                    Mean episode length: 487.09
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1691
+Episode_Reward/clf_decreasing_condition: -0.1279
+    Episode_Reward/holonomic_constraint: 2.0151
+Episode_Reward/holonomic_constraint_vel: 0.9172
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0656
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 148.1600
+         Metrics/hlip/mpc_selected_cost: 0.3966
+        Metrics/hlip/mpc_feasible_steps: 3.9079
+        Metrics/hlip/mpc_time_deviation: 0.1170
+         Metrics/hlip/mpc_fallback_used: 0.0789
+           Episode_Termination/time_out: 1.7167
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 6.4500
+Episode_Termination/prolonged_double_support: 0.3333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:35:09
+                                    ETA: 02:27:55
+
+################################################################################
+[1m                           Learning iteration 96/500                            [0m 
+
+                            Total steps: 47677440 
+                       Steps per second: 22414 
+                        Collection time: 13.233s 
+                          Learning time: 8.696s 
+                     Mean behavior loss: 0.0908
+                            Mean reward: 141.29
+                    Mean episode length: 547.89
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.0253
+Episode_Reward/clf_decreasing_condition: -0.1277
+    Episode_Reward/holonomic_constraint: 1.9526
+Episode_Reward/holonomic_constraint_vel: 0.8855
+        Episode_Reward/joint_torques_l2: -0.0128
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0638
+         Episode_Reward/self_collisions: -0.0129
+                    Metrics/hlip/v_mean: 155.7262
+         Metrics/hlip/mpc_selected_cost: 0.3916
+        Metrics/hlip/mpc_feasible_steps: 3.9084
+        Metrics/hlip/mpc_time_deviation: 0.1163
+         Metrics/hlip/mpc_fallback_used: 0.0751
+           Episode_Termination/time_out: 1.4750
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 5.7833
+Episode_Termination/prolonged_double_support: 0.2833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.93s
+                           Time elapsed: 00:35:31
+                                    ETA: 02:27:33
+
+################################################################################
+[1m                           Learning iteration 97/500                            [0m 
+
+                            Total steps: 48168960 
+                       Steps per second: 22405 
+                        Collection time: 13.228s 
+                          Learning time: 8.709s 
+                     Mean behavior loss: 0.0848
+                            Mean reward: 132.57
+                    Mean episode length: 510.17
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.8224
+Episode_Reward/clf_decreasing_condition: -0.1230
+    Episode_Reward/holonomic_constraint: 1.8591
+Episode_Reward/holonomic_constraint_vel: 0.8426
+        Episode_Reward/joint_torques_l2: -0.0122
+        Episode_Reward/joint_pos_limits: -0.0127
+          Episode_Reward/action_rate_l2: -0.0624
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 159.6681
+         Metrics/hlip/mpc_selected_cost: 0.4208
+        Metrics/hlip/mpc_feasible_steps: 3.9113
+        Metrics/hlip/mpc_time_deviation: 0.1168
+         Metrics/hlip/mpc_fallback_used: 0.0685
+           Episode_Termination/time_out: 1.2417
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 6.4583
+Episode_Termination/prolonged_double_support: 0.3833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:35:52
+                                    ETA: 02:27:11
+
+################################################################################
+[1m                           Learning iteration 98/500                            [0m 
+
+                            Total steps: 48660480 
+                       Steps per second: 22430 
+                        Collection time: 13.194s 
+                          Learning time: 8.719s 
+                     Mean behavior loss: 0.0872
+                            Mean reward: 139.54
+                    Mean episode length: 546.00
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2368
+Episode_Reward/clf_decreasing_condition: -0.1299
+    Episode_Reward/holonomic_constraint: 2.0438
+Episode_Reward/holonomic_constraint_vel: 0.9314
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0652
+         Episode_Reward/self_collisions: -0.0138
+                    Metrics/hlip/v_mean: 156.5017
+         Metrics/hlip/mpc_selected_cost: 0.4009
+        Metrics/hlip/mpc_feasible_steps: 3.9038
+        Metrics/hlip/mpc_time_deviation: 0.1165
+         Metrics/hlip/mpc_fallback_used: 0.0852
+           Episode_Termination/time_out: 1.4833
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 5.8333
+Episode_Termination/prolonged_double_support: 0.3500
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:36:14
+                                    ETA: 02:26:49
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 99/500                            [0m 
+
+                            Total steps: 49152000 
+                       Steps per second: 22400 
+                        Collection time: 13.221s 
+                          Learning time: 8.722s 
+                     Mean behavior loss: 0.0820
+                            Mean reward: 124.02
+                    Mean episode length: 486.45
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9212
+Episode_Reward/clf_decreasing_condition: -0.1265
+    Episode_Reward/holonomic_constraint: 1.9101
+Episode_Reward/holonomic_constraint_vel: 0.8635
+        Episode_Reward/joint_torques_l2: -0.0125
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0658
+         Episode_Reward/self_collisions: -0.0149
+                    Metrics/hlip/v_mean: 168.2878
+         Metrics/hlip/mpc_selected_cost: 0.4201
+        Metrics/hlip/mpc_feasible_steps: 3.9068
+        Metrics/hlip/mpc_time_deviation: 0.1159
+         Metrics/hlip/mpc_fallback_used: 0.0809
+           Episode_Termination/time_out: 1.2833
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.4583
+Episode_Termination/prolonged_double_support: 0.3083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:36:36
+                                    ETA: 02:26:27
+
+################################################################################
+[1m                           Learning iteration 100/500                           [0m 
+
+                            Total steps: 49643520 
+                       Steps per second: 22370 
+                        Collection time: 13.243s 
+                          Learning time: 8.728s 
+                     Mean behavior loss: 0.0861
+                            Mean reward: 140.79
+                    Mean episode length: 550.87
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9985
+Episode_Reward/clf_decreasing_condition: -0.1249
+    Episode_Reward/holonomic_constraint: 1.9314
+Episode_Reward/holonomic_constraint_vel: 0.8780
+        Episode_Reward/joint_torques_l2: -0.0126
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0629
+         Episode_Reward/self_collisions: -0.0142
+                    Metrics/hlip/v_mean: 157.2523
+         Metrics/hlip/mpc_selected_cost: 0.4087
+        Metrics/hlip/mpc_feasible_steps: 3.8785
+        Metrics/hlip/mpc_time_deviation: 0.1144
+         Metrics/hlip/mpc_fallback_used: 0.0930
+           Episode_Termination/time_out: 1.1167
+          Episode_Termination/fell_over: 0.0833
+     Episode_Termination/pelvis_too_low: 5.6000
+Episode_Termination/prolonged_double_support: 0.2333
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:36:58
+                                    ETA: 02:26:05
+
+################################################################################
+[1m                           Learning iteration 101/500                           [0m 
+
+                            Total steps: 50135040 
+                       Steps per second: 22367 
+                        Collection time: 13.219s 
+                          Learning time: 8.756s 
+                     Mean behavior loss: 0.0814
+                            Mean reward: 142.66
+                    Mean episode length: 541.24
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1342
+Episode_Reward/clf_decreasing_condition: -0.1276
+    Episode_Reward/holonomic_constraint: 2.0007
+Episode_Reward/holonomic_constraint_vel: 0.9118
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0621
+         Episode_Reward/self_collisions: -0.0132
+                    Metrics/hlip/v_mean: 156.4171
+         Metrics/hlip/mpc_selected_cost: 0.4105
+        Metrics/hlip/mpc_feasible_steps: 3.8977
+        Metrics/hlip/mpc_time_deviation: 0.1169
+         Metrics/hlip/mpc_fallback_used: 0.0875
+           Episode_Termination/time_out: 1.3750
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.2833
+Episode_Termination/prolonged_double_support: 0.1917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:37:20
+                                    ETA: 02:25:43
+
+################################################################################
+[1m                           Learning iteration 102/500                           [0m 
+
+                            Total steps: 50626560 
+                       Steps per second: 22421 
+                        Collection time: 13.210s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0867
+                            Mean reward: 132.60
+                    Mean episode length: 510.08
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2203
+Episode_Reward/clf_decreasing_condition: -0.1267
+    Episode_Reward/holonomic_constraint: 2.0276
+Episode_Reward/holonomic_constraint_vel: 0.9270
+        Episode_Reward/joint_torques_l2: -0.0130
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0625
+         Episode_Reward/self_collisions: -0.0126
+                    Metrics/hlip/v_mean: 149.3753
+         Metrics/hlip/mpc_selected_cost: 0.4169
+        Metrics/hlip/mpc_feasible_steps: 3.9310
+        Metrics/hlip/mpc_time_deviation: 0.1162
+         Metrics/hlip/mpc_fallback_used: 0.0640
+           Episode_Termination/time_out: 1.4000
+          Episode_Termination/fell_over: 0.0500
+     Episode_Termination/pelvis_too_low: 5.8167
+Episode_Termination/prolonged_double_support: 0.3000
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:37:42
+                                    ETA: 02:25:21
+
+################################################################################
+[1m                           Learning iteration 103/500                           [0m 
+
+                            Total steps: 51118080 
+                       Steps per second: 22364 
+                        Collection time: 13.249s 
+                          Learning time: 8.729s 
+                     Mean behavior loss: 0.0804
+                            Mean reward: 153.16
+                    Mean episode length: 583.49
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2227
+Episode_Reward/clf_decreasing_condition: -0.1252
+    Episode_Reward/holonomic_constraint: 2.0298
+Episode_Reward/holonomic_constraint_vel: 0.9276
+        Episode_Reward/joint_torques_l2: -0.0132
+        Episode_Reward/joint_pos_limits: -0.0133
+          Episode_Reward/action_rate_l2: -0.0630
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 152.8774
+         Metrics/hlip/mpc_selected_cost: 0.3882
+        Metrics/hlip/mpc_feasible_steps: 3.8880
+        Metrics/hlip/mpc_time_deviation: 0.1161
+         Metrics/hlip/mpc_fallback_used: 0.0935
+           Episode_Termination/time_out: 1.4667
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.7583
+Episode_Termination/prolonged_double_support: 0.2083
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:38:04
+                                    ETA: 02:24:59
+
+################################################################################
+[1m                           Learning iteration 104/500                           [0m 
+
+                            Total steps: 51609600 
+                       Steps per second: 22424 
+                        Collection time: 13.226s 
+                          Learning time: 8.692s 
+                     Mean behavior loss: 0.0881
+                            Mean reward: 154.77
+                    Mean episode length: 594.36
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3267
+Episode_Reward/clf_decreasing_condition: -0.1259
+    Episode_Reward/holonomic_constraint: 2.0695
+Episode_Reward/holonomic_constraint_vel: 0.9467
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0655
+         Episode_Reward/self_collisions: -0.0142
+                    Metrics/hlip/v_mean: 152.3346
+         Metrics/hlip/mpc_selected_cost: 0.3918
+        Metrics/hlip/mpc_feasible_steps: 3.9248
+        Metrics/hlip/mpc_time_deviation: 0.1161
+         Metrics/hlip/mpc_fallback_used: 0.0710
+           Episode_Termination/time_out: 1.4750
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 5.5833
+Episode_Termination/prolonged_double_support: 0.2167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.92s
+                           Time elapsed: 00:38:26
+                                    ETA: 02:24:37
+
+################################################################################
+[1m                           Learning iteration 105/500                           [0m 
+
+                            Total steps: 52101120 
+                       Steps per second: 22369 
+                        Collection time: 13.249s 
+                          Learning time: 8.724s 
+                     Mean behavior loss: 0.0795
+                            Mean reward: 140.25
+                    Mean episode length: 539.68
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3208
+Episode_Reward/clf_decreasing_condition: -0.1277
+    Episode_Reward/holonomic_constraint: 2.0808
+Episode_Reward/holonomic_constraint_vel: 0.9504
+        Episode_Reward/joint_torques_l2: -0.0134
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0635
+         Episode_Reward/self_collisions: -0.0145
+                    Metrics/hlip/v_mean: 145.9512
+         Metrics/hlip/mpc_selected_cost: 0.4077
+        Metrics/hlip/mpc_feasible_steps: 3.8863
+        Metrics/hlip/mpc_time_deviation: 0.1169
+         Metrics/hlip/mpc_fallback_used: 0.0918
+           Episode_Termination/time_out: 1.7333
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 6.6750
+Episode_Termination/prolonged_double_support: 0.2583
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:38:48
+                                    ETA: 02:24:15
+
+################################################################################
+[1m                           Learning iteration 106/500                           [0m 
+
+                            Total steps: 52592640 
+                       Steps per second: 22385 
+                        Collection time: 13.256s 
+                          Learning time: 8.701s 
+                     Mean behavior loss: 0.0876
+                            Mean reward: 145.05
+                    Mean episode length: 555.10
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1618
+Episode_Reward/clf_decreasing_condition: -0.1241
+    Episode_Reward/holonomic_constraint: 1.9934
+Episode_Reward/holonomic_constraint_vel: 0.9116
+        Episode_Reward/joint_torques_l2: -0.0129
+        Episode_Reward/joint_pos_limits: -0.0130
+          Episode_Reward/action_rate_l2: -0.0618
+         Episode_Reward/self_collisions: -0.0126
+                    Metrics/hlip/v_mean: 152.5477
+         Metrics/hlip/mpc_selected_cost: 0.4007
+        Metrics/hlip/mpc_feasible_steps: 3.9041
+        Metrics/hlip/mpc_time_deviation: 0.1167
+         Metrics/hlip/mpc_fallback_used: 0.0848
+           Episode_Termination/time_out: 1.5333
+          Episode_Termination/fell_over: 0.0167
+     Episode_Termination/pelvis_too_low: 6.0333
+Episode_Termination/prolonged_double_support: 0.1917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.96s
+                           Time elapsed: 00:39:10
+                                    ETA: 02:23:53
+
+################################################################################
+[1m                           Learning iteration 107/500                           [0m 
+
+                            Total steps: 53084160 
+                       Steps per second: 22371 
+                        Collection time: 13.263s 
+                          Learning time: 8.708s 
+                     Mean behavior loss: 0.0828
+                            Mean reward: 135.89
+                    Mean episode length: 527.14
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9613
+Episode_Reward/clf_decreasing_condition: -0.1256
+    Episode_Reward/holonomic_constraint: 1.9214
+Episode_Reward/holonomic_constraint_vel: 0.8730
+        Episode_Reward/joint_torques_l2: -0.0126
+        Episode_Reward/joint_pos_limits: -0.0131
+          Episode_Reward/action_rate_l2: -0.0631
+         Episode_Reward/self_collisions: -0.0136
+                    Metrics/hlip/v_mean: 166.7098
+         Metrics/hlip/mpc_selected_cost: 0.4025
+        Metrics/hlip/mpc_feasible_steps: 3.8847
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0972
+           Episode_Termination/time_out: 1.2500
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 6.2833
+Episode_Termination/prolonged_double_support: 0.1750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.97s
+                           Time elapsed: 00:39:32
+                                    ETA: 02:23:31
+
+################################################################################
+[1m                           Learning iteration 108/500                           [0m 
+
+                            Total steps: 53575680 
+                       Steps per second: 22435 
+                        Collection time: 13.223s 
+                          Learning time: 8.685s 
+                     Mean behavior loss: 0.0857
+                            Mean reward: 123.75
+                    Mean episode length: 490.17
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2974
+Episode_Reward/clf_decreasing_condition: -0.1318
+    Episode_Reward/holonomic_constraint: 2.0730
+Episode_Reward/holonomic_constraint_vel: 0.9426
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0134
+          Episode_Reward/action_rate_l2: -0.0667
+         Episode_Reward/self_collisions: -0.0134
+                    Metrics/hlip/v_mean: 143.9061
+         Metrics/hlip/mpc_selected_cost: 0.4203
+        Metrics/hlip/mpc_feasible_steps: 3.9286
+        Metrics/hlip/mpc_time_deviation: 0.1153
+         Metrics/hlip/mpc_fallback_used: 0.0647
+           Episode_Termination/time_out: 1.5333
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.9750
+Episode_Termination/prolonged_double_support: 0.2167
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:39:54
+                                    ETA: 02:23:08
+
+################################################################################
+[1m                           Learning iteration 109/500                           [0m 
+
+                            Total steps: 54067200 
+                       Steps per second: 22432 
+                        Collection time: 13.189s 
+                          Learning time: 8.722s 
+                     Mean behavior loss: 0.0840
+                            Mean reward: 135.84
+                    Mean episode length: 522.66
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 3.9401
+Episode_Reward/clf_decreasing_condition: -0.1225
+    Episode_Reward/holonomic_constraint: 1.9095
+Episode_Reward/holonomic_constraint_vel: 0.8686
+        Episode_Reward/joint_torques_l2: -0.0124
+        Episode_Reward/joint_pos_limits: -0.0130
+          Episode_Reward/action_rate_l2: -0.0621
+         Episode_Reward/self_collisions: -0.0139
+                    Metrics/hlip/v_mean: 155.9914
+         Metrics/hlip/mpc_selected_cost: 0.3926
+        Metrics/hlip/mpc_feasible_steps: 3.8997
+        Metrics/hlip/mpc_time_deviation: 0.1156
+         Metrics/hlip/mpc_fallback_used: 0.0863
+           Episode_Termination/time_out: 1.2000
+          Episode_Termination/fell_over: 0.0583
+     Episode_Termination/pelvis_too_low: 6.0500
+Episode_Termination/prolonged_double_support: 0.3833
+--------------------------------------------------------------------------------
+                         Iteration time: 21.91s
+                           Time elapsed: 00:40:16
+                                    ETA: 02:22:46
+
+################################################################################
+[1m                           Learning iteration 110/500                           [0m 
+
+                            Total steps: 54558720 
+                       Steps per second: 22397 
+                        Collection time: 13.251s 
+                          Learning time: 8.695s 
+                     Mean behavior loss: 0.0846
+                            Mean reward: 144.96
+                    Mean episode length: 553.73
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.3148
+Episode_Reward/clf_decreasing_condition: -0.1258
+    Episode_Reward/holonomic_constraint: 2.0611
+Episode_Reward/holonomic_constraint_vel: 0.9443
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0633
+         Episode_Reward/self_collisions: -0.0131
+                    Metrics/hlip/v_mean: 152.6312
+         Metrics/hlip/mpc_selected_cost: 0.3950
+        Metrics/hlip/mpc_feasible_steps: 3.9085
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0864
+           Episode_Termination/time_out: 1.5583
+          Episode_Termination/fell_over: 0.0083
+     Episode_Termination/pelvis_too_low: 5.6667
+Episode_Termination/prolonged_double_support: 0.2417
+--------------------------------------------------------------------------------
+                         Iteration time: 21.95s
+                           Time elapsed: 00:40:38
+                                    ETA: 02:22:24
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+wandb: WARNING Symlinked 1 file into the W&B run directory; call wandb.save again to sync new files.
+
+################################################################################
+[1m                           Learning iteration 111/500                           [0m 
+
+                            Total steps: 55050240 
+                       Steps per second: 22359 
+                        Collection time: 13.254s 
+                          Learning time: 8.729s 
+                     Mean behavior loss: 0.0801
+                            Mean reward: 123.96
+                    Mean episode length: 481.90
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1326
+Episode_Reward/clf_decreasing_condition: -0.1282
+    Episode_Reward/holonomic_constraint: 2.0018
+Episode_Reward/holonomic_constraint_vel: 0.9117
+        Episode_Reward/joint_torques_l2: -0.0130
+        Episode_Reward/joint_pos_limits: -0.0135
+          Episode_Reward/action_rate_l2: -0.0636
+         Episode_Reward/self_collisions: -0.0142
+                    Metrics/hlip/v_mean: 153.1979
+         Metrics/hlip/mpc_selected_cost: 0.3941
+        Metrics/hlip/mpc_feasible_steps: 3.9087
+        Metrics/hlip/mpc_time_deviation: 0.1164
+         Metrics/hlip/mpc_fallback_used: 0.0779
+           Episode_Termination/time_out: 1.4250
+          Episode_Termination/fell_over: 0.0333
+     Episode_Termination/pelvis_too_low: 5.9417
+Episode_Termination/prolonged_double_support: 0.2750
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:41:00
+                                    ETA: 02:22:02
+
+################################################################################
+[1m                           Learning iteration 112/500                           [0m 
+
+                            Total steps: 55541760 
+                       Steps per second: 22361 
+                        Collection time: 13.269s 
+                          Learning time: 8.712s 
+                     Mean behavior loss: 0.0858
+                            Mean reward: 152.75
+                    Mean episode length: 584.60
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.2947
+Episode_Reward/clf_decreasing_condition: -0.1290
+    Episode_Reward/holonomic_constraint: 2.0569
+Episode_Reward/holonomic_constraint_vel: 0.9405
+        Episode_Reward/joint_torques_l2: -0.0133
+        Episode_Reward/joint_pos_limits: -0.0136
+          Episode_Reward/action_rate_l2: -0.0653
+         Episode_Reward/self_collisions: -0.0123
+                    Metrics/hlip/v_mean: 144.8041
+         Metrics/hlip/mpc_selected_cost: 0.3801
+        Metrics/hlip/mpc_feasible_steps: 3.9018
+        Metrics/hlip/mpc_time_deviation: 0.1157
+         Metrics/hlip/mpc_fallback_used: 0.0781
+           Episode_Termination/time_out: 1.5917
+          Episode_Termination/fell_over: 0.0417
+     Episode_Termination/pelvis_too_low: 5.5500
+Episode_Termination/prolonged_double_support: 0.2917
+--------------------------------------------------------------------------------
+                         Iteration time: 21.98s
+                           Time elapsed: 00:41:22
+                                    ETA: 02:21:40
+
+################################################################################
+[1m                           Learning iteration 113/500                           [0m 
+
+                            Total steps: 56033280 
+                       Steps per second: 22403 
+                        Collection time: 13.217s 
+                          Learning time: 8.722s 
+                     Mean behavior loss: 0.0801
+                            Mean reward: 142.20
+                    Mean episode length: 546.12
+                  Mean action noise std: 0.00
+              Episode_Reward/clf_reward: 4.1925
+Episode_Reward/clf_decreasing_condition: -0.1279
+    Episode_Reward/holonomic_constraint: 2.0218
+Episode_Reward/holonomic_constraint_vel: 0.9221
+        Episode_Reward/joint_torques_l2: -0.0131
+        Episode_Reward/joint_pos_limits: -0.0135
+          Episode_Reward/action_rate_l2: -0.0649
+         Episode_Reward/self_collisions: -0.0132
+                    Metrics/hlip/v_mean: 155.1581
+         Metrics/hlip/mpc_selected_cost: 0.4057
+        Metrics/hlip/mpc_feasible_steps: 3.9125
+        Metrics/hlip/mpc_time_deviation: 0.1143
+         Metrics/hlip/mpc_fallback_used: 0.0723
+           Episode_Termination/time_out: 1.6500
+          Episode_Termination/fell_over: 0.0250
+     Episode_Termination/pelvis_too_low: 6.1833
+Episode_Termination/prolonged_double_support: 0.3667
+--------------------------------------------------------------------------------
+                         Iteration time: 21.94s
+                           Time elapsed: 00:41:44
+                                    ETA: 02:21:18
+
+
+[INFO] Training interrupted by user (Ctrl-C).
+[INFO] Saved interrupt checkpoint to: logs/rsl_rl/g1_hlip_clf_distillation/2026-04-15_11-36-21/model_interrupt.pt
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33m2026-04-15_11-36-21[0m at: [34mhttps://wandb.ai/codrincrismariu-tufts-university/mjlab/runs/aswvtl4s[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260415_113646-aswvtl4s/logs[0m

@@ -12,6 +12,7 @@ are imported from the base environment MDP.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Sequence
 
 import torch
@@ -284,6 +285,95 @@ def ankle_roll_zero(
   asset: Entity = env.scene[asset_cfg.name]
   ankle_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
   return torch.exp(-torch.sum(ankle_pos**2, dim=-1) / std**2)
+
+
+def joint_default_pose_tracking(
+  env: ManagerBasedRlEnv,
+  std: float = 0.2,
+  asset_cfg: SceneEntityCfg = _DEFAULT_ASSET_CFG,
+  target_offset: float | Sequence[float] = 0.0,
+) -> torch.Tensor:
+  """Reward keeping selected joints near their default positions.
+
+  This is used to preserve prior lock postures while allowing the policy to
+  actively control those joints. ``target_offset`` is added to the default
+  joint position target and can be scalar or per-joint.
+  """
+  asset: Entity = env.scene[asset_cfg.name]
+  joint_ids = asset_cfg.joint_ids
+
+  if len(joint_ids) == 0:
+    return torch.ones(env.num_envs, device=env.device)
+
+  joint_pos = asset.data.joint_pos[:, joint_ids]
+  joint_default = asset.data.default_joint_pos[:, joint_ids]
+  offset = torch.as_tensor(
+    target_offset,
+    dtype=joint_default.dtype,
+    device=joint_default.device,
+  )
+  if offset.ndim == 0:
+    offset = offset.expand(joint_default.shape[1])
+  elif offset.numel() != joint_default.shape[1]:
+    raise ValueError(
+      "target_offset must be scalar or match number of selected joints "
+      f"({joint_default.shape[1]}), got {offset.numel()}."
+    )
+
+  target = joint_default + offset.unsqueeze(0)
+  err = joint_pos - target
+  mean_err_sq = torch.mean(err**2, dim=-1)
+  return torch.exp(-mean_err_sq / std**2)
+
+
+def action_rate_l2_action_term_subset(
+  env: ManagerBasedRlEnv,
+  action_term_name: str = "joint_pos",
+  target_name_patterns: Sequence[str] = (
+    r".*_hip_.*",
+    r".*_knee_.*",
+    r".*_ankle_.*",
+  ),
+) -> torch.Tensor:
+  """Penalize action-rate only for selected channels of one action term."""
+  action_manager = env.action_manager
+  action_term = action_manager.get_term(action_term_name)
+
+  if not hasattr(action_term, "target_names"):
+    raise ValueError(
+      f"Action term '{action_term_name}' does not expose target_names."
+    )
+
+  target_names = list(action_term.target_names)
+  local_ids = [
+    i for i, name in enumerate(target_names)
+    if any(re.fullmatch(pattern, name) for pattern in target_name_patterns)
+  ]
+  if len(local_ids) == 0:
+    return torch.zeros(env.num_envs, device=env.device)
+
+  start_idx = 0
+  found = False
+  for term_name, dim in zip(
+    action_manager.active_terms,
+    action_manager.action_term_dim,
+  ):
+    if term_name == action_term_name:
+      found = True
+      break
+    start_idx += dim
+
+  if not found:
+    raise ValueError(f"Action term '{action_term_name}' not found in action manager.")
+
+  global_ids = torch.tensor(
+    [start_idx + i for i in local_ids],
+    device=env.device,
+    dtype=torch.long,
+  )
+  action = action_manager.action.index_select(1, global_ids)
+  prev_action = action_manager.prev_action.index_select(1, global_ids)
+  return torch.sum(torch.square(action - prev_action), dim=1)
 
 
 def foot_clearance(

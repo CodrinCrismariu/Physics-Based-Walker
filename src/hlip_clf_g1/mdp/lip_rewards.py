@@ -25,7 +25,10 @@ def self_collision_cost(env: ManagerBasedRlEnv, sensor_name: str) -> torch.Tenso
   """Penalise self-collisions."""
   sensor: ContactSensor = env.scene[sensor_name]
   assert sensor.data.found is not None
-  return sensor.data.found.squeeze(-1)
+  found = sensor.data.found
+  if found.ndim == 1:
+    return found.float()
+  return found.reshape(found.shape[0], -1).any(dim=1).float()
 
 
 def upright_reward(

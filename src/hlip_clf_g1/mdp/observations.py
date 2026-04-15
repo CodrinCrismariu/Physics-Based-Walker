@@ -21,6 +21,18 @@ if TYPE_CHECKING:
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
 
 
+def _prime_hlip_command_if_pending(cmd) -> None:
+  """Ensure command-derived observations are initialized on reset.
+
+  During ``env.reset()``, observation computation can occur before
+  ``command_manager.compute()``. For HLIP command terms, this helper primes
+  reset-time state exactly once so the first observation is not all zeros.
+  """
+  prime_fn = getattr(cmd, "prime_for_observation", None)
+  if callable(prime_fn):
+    prime_fn()
+
+
 # =====================================================================
 # Reference / actual trajectory observations
 # =====================================================================
@@ -34,6 +46,7 @@ def ref_traj(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.y_out
 
 
@@ -45,6 +58,7 @@ def act_traj(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.y_act
 
 
@@ -56,6 +70,7 @@ def traj_error(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.y_out - cmd.y_act
 
 
@@ -67,6 +82,7 @@ def ref_traj_vel(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.dy_out
 
 
@@ -78,6 +94,7 @@ def act_traj_vel(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.dy_act
 
 
@@ -94,6 +111,7 @@ def sin_phase(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return torch.sin(2 * torch.pi * cmd.tp).unsqueeze(-1)
 
 
@@ -105,6 +123,7 @@ def cos_phase(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return torch.cos(2 * torch.pi * cmd.tp).unsqueeze(-1)
 
 
@@ -116,18 +135,8 @@ def domain_flag(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.stance_idx.float().unsqueeze(-1)
-
-
-def touchdown_target(
-  env: ManagerBasedRlEnv,
-  command_name: str,
-) -> torch.Tensor:
-  """Touchdown target in stance-local frame. Shape (num_envs, 3)."""
-  from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
-
-  cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
-  return cmd.foot_target
 
 
 # =====================================================================
@@ -191,6 +200,7 @@ def hlip_velocity_command(
   from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
 
   cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+  _prime_hlip_command_if_pending(cmd)
   return cmd.vel_command
 
 
@@ -267,3 +277,31 @@ def depth_camera_chw_data(
   raise ValueError(
     f"Expected a single-channel depth image, got shape {tuple(depth.shape)}."
   )
+
+
+def depth_camera_sparse_terrain_chw_data(
+  env: ManagerBasedRlEnv,
+  sensor_name: str = "head_camera",
+  min_depth: float = 0.08,
+  max_depth: float = 2.0,
+  depth_noise_scale: float = 0.1,
+) -> torch.Tensor:
+  """Depth preprocessing with depth-proportional multiplicative noise.
+
+  Keeps depth in metric units after sanitization/clamping and applies
+  multiplicative noise with per-pixel amplitude
+  ``depth_noise_scale * depth``.
+  """
+  depth = depth_camera_chw_data(env=env, sensor_name=sensor_name).to(torch.float32)
+
+  # Replace invalid values and bound the physical sensing range.
+  depth = torch.nan_to_num(depth, nan=max_depth, posinf=max_depth, neginf=min_depth)
+  depth = depth.clamp(min=min_depth, max=max_depth)
+
+  if depth_noise_scale > 0.0:
+    # Uniform multiplicative noise in [-scale, +scale] relative to each pixel depth.
+    rel_noise = (2.0 * torch.rand_like(depth) - 1.0) * depth_noise_scale
+    depth = depth * (1.0 + rel_noise)
+    depth = depth.clamp(min=min_depth, max=max_depth)
+
+  return depth

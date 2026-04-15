@@ -4,12 +4,15 @@ from hlip_clf_g1.rl.exporter import (
 from hlip_clf_g1.rl.runner import (
   LIPOnPolicyRunner as HLIPOnPolicyRunner,
   LIPDistilledOnPolicyRunner as HLIPDistilledOnPolicyRunner,
-  LIPDistillationFineTuneOnPolicyRunner as HLIPDistillationFineTuneOnPolicyRunner,
+)
+from hlip_clf_g1.rl.distillation_algorithm import (
+  DistillationMDN as DistillationMDN,
 )
 from hlip_clf_g1.rl.distillation_config import (
   RslRlDistillationModelCfg as RslRlDistillationModelCfg,
   RslRlDistillationCnnModelCfg as RslRlDistillationCnnModelCfg,
+  RslRlDistillationCnnTransformerModelCfg as RslRlDistillationCnnTransformerModelCfg,
+  RslRlDistillationCnnTransformerMdnModelCfg as RslRlDistillationCnnTransformerMdnModelCfg,
   RslRlDistillationAlgorithmCfg as RslRlDistillationAlgorithmCfg,
   RslRlDistillationRunnerCfg as RslRlDistillationRunnerCfg,
-  RslRlDistillationFineTuneRunnerCfg as RslRlDistillationFineTuneRunnerCfg,
 )

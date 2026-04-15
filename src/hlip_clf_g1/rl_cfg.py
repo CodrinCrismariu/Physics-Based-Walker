@@ -7,26 +7,107 @@ from mjlab.rl import (
 )
 
 from hlip_clf_g1.rl.distillation_config import (
-  RslRlDistillationModelCfg,
-  RslRlDistillationCnnModelCfg,
   RslRlDistillationAlgorithmCfg,
+  RslRlDistillationCnnModelCfg,
+  RslRlDistillationCnnTransformerMdnModelCfg,
+  RslRlDistillationModelCfg,
   RslRlDistillationRunnerCfg,
-  RslRlDistillationFineTuneRunnerCfg,
 )
 
 
+_DISTILLATION_STUDENT_OBS_GROUPS = (
+  "student_vec",
+  "head_camera_depth",
+)
+_DISTILLATION_TEACHER_OBS_GROUPS = ("teacher",)
+
+
 def _depth_cnn_cfg() -> dict[str, object]:
+  # Sparse-terrain depth images benefit from a wider early receptive field and
+  # an extra stage while preserving the 2D map (no global pooling).
   return {
-    "output_channels": (16, 32, 64),
-    "kernel_size": (5, 3, 3),
-    "stride": (2, 2, 2),        # Changed to 2 to safely reduce spatial grid size
-    "padding": "none",
-    "norm": "batch",            # Batch norm is fine (fuses to 0 latency at inference)
-    "activation": "lrelu", # Changed for faster inference calculation
-    "max_pool": (False, False, False),
-    "global_pool": "none",        # Removed! Do not use Global Average Pooling.
-    "flatten": True,            
+    "output_channels": (24, 32, 48, 64),
+    "kernel_size": (5, 3, 3, 3),
+    "stride": (2, 2, 1, 1),
+    "padding": "zeros",
+    "norm": "batch",
+    "activation": "elu",
+    "max_pool": (False, False, False, False),
+    "global_pool": "none",
+    "flatten": True,
   }
+
+
+def _make_student_model_cfg(
+  *,
+  init_noise_std: float,
+  stochastic: bool,
+) -> RslRlDistillationCnnModelCfg:
+  return RslRlDistillationCnnModelCfg(
+    init_noise_std=init_noise_std,
+    obs_normalization=True,
+    hidden_dims=(512, 256, 128),
+    activation="elu",
+    stochastic=stochastic,
+    cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+  )
+
+
+def _make_student_mdn_model_cfg(
+  *,
+  stochastic: bool,
+) -> RslRlDistillationCnnTransformerMdnModelCfg:
+  return RslRlDistillationCnnTransformerMdnModelCfg(
+    class_name="hlip_clf_g1.rl.models.cnn_transformer_mdn_model:CNNTransformerMDNModel",
+    obs_normalization=True,
+    hidden_dims=(512, 256, 128),
+    activation="elu",
+    stochastic=stochastic,
+    cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+    mdn_num_modes=3,
+    mdn_min_std=1.0e-3,
+    mdn_min_log_std=-5.0,
+    mdn_max_log_std=2.0,
+    mdn_inference_mode="top_mode_mean",
+  )
+
+
+def _make_teacher_model_cfg(
+  *,
+  init_noise_std: float,
+  stochastic: bool,
+) -> RslRlDistillationModelCfg:
+  return RslRlDistillationModelCfg(
+    init_noise_std=init_noise_std,
+    obs_normalization=True,
+    hidden_dims=(512, 256, 128),
+    activation="elu",
+    stochastic=stochastic,
+  )
+
+
+def _make_distillation_algorithm_cfg() -> RslRlDistillationAlgorithmCfg:
+  return RslRlDistillationAlgorithmCfg(
+    num_learning_epochs=10,
+    learning_rate=5 * 1.0e-4,
+    gradient_length=2,
+    max_grad_norm=2.0,
+    optimizer="adam",
+    loss_type="huber",
+  )
+
+
+def _make_distillation_mdn_algorithm_cfg() -> RslRlDistillationAlgorithmCfg:
+  return RslRlDistillationAlgorithmCfg(
+    class_name="hlip_clf_g1.rl.distillation_algorithm:DistillationMDN",
+    num_learning_epochs=10,
+    learning_rate=5 * 1.0e-4,
+    gradient_length=2,
+    max_grad_norm=2.0,
+    optimizer="adam",
+    loss_type="huber",
+    mdn_entropy_coef=0.0,
+  )
 
 def unitree_g1_hlip_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   """Create RL runner configuration for Unitree G1 HLIP + CLF walking task."""
@@ -61,83 +142,45 @@ def unitree_g1_hlip_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
     experiment_name="g1_hlip_clf",
     save_interval=100,
     num_steps_per_env=24,
-    max_iterations=10001,
+    max_iterations=4000,
   )
+
 
 def unitree_g1_hlip_distillation_runner_cfg() -> RslRlDistillationRunnerCfg:
   """Create RL runner configuration for Unitree G1 HLIP + CLF walking task."""
   return RslRlDistillationRunnerCfg(
     obs_groups={
-      "student": ("student_vec", "head_camera_depth", ),
-      "teacher": ("teacher",),
+      "student": _DISTILLATION_STUDENT_OBS_GROUPS,
+      "teacher": _DISTILLATION_TEACHER_OBS_GROUPS,
     },
-    student=RslRlDistillationCnnModelCfg(
+    student=_make_student_model_cfg(init_noise_std=0.0, stochastic=True),
+    teacher=_make_teacher_model_cfg(
       init_noise_std=0.0,
-      obs_normalization=True,
-      hidden_dims=(512, 256, 128),
-      activation="elu",
-      stochastic=True,
-      cnn_cfg=_depth_cnn_cfg(),
-    ),
-    teacher=RslRlDistillationModelCfg(
-      init_noise_std=0.0,
-      obs_normalization=True,
-      hidden_dims=(512, 256, 128),
-      activation="elu",
       stochastic=True,
     ),
-    algorithm=RslRlDistillationAlgorithmCfg(
-      num_learning_epochs=10,
-      learning_rate=5*1.0e-4,
-      gradient_length=2,
-      max_grad_norm=2.0,
-      optimizer="adam",
-      loss_type="huber",
-    ),
+    algorithm=_make_distillation_algorithm_cfg(),
     experiment_name="g1_hlip_clf_distillation",
     save_interval=10,
     num_steps_per_env=120,
-    max_iterations=10001,
+    max_iterations=500,
   )
 
-def unitree_g1_hlip_fine_tune_ppo_runner_cfg() -> RslRlDistillationFineTuneRunnerCfg:
-  """Create RL runner configuration for Unitree G1 HLIP + CLF walking task."""
-  return RslRlDistillationFineTuneRunnerCfg(
+
+def unitree_g1_hlip_distillation_mdn_runner_cfg() -> RslRlDistillationRunnerCfg:
+  """Create MDN distillation runner configuration for Unitree G1 HLIP + CLF."""
+  return RslRlDistillationRunnerCfg(
     obs_groups={
-      "actor": ("student_vec", "head_camera_depth"),
-      "critic": ("critic",),
+      "student": _DISTILLATION_STUDENT_OBS_GROUPS,
+      "teacher": _DISTILLATION_TEACHER_OBS_GROUPS,
     },
-    actor=RslRlModelCfg(
-      init_noise_std=1.0,
-      obs_normalization=True,
-      hidden_dims=(512, 256, 128),
-      activation="elu",
+    student=_make_student_mdn_model_cfg(stochastic=True),
+    teacher=_make_teacher_model_cfg(
+      init_noise_std=0.0,
       stochastic=True,
-      class_name="CNNModel",
-      cnn_cfg=_depth_cnn_cfg(),
     ),
-    critic=RslRlModelCfg(
-      obs_normalization=True,
-      hidden_dims=(512, 256, 128),
-      activation="elu",
-      stochastic=False,
-    ),
-    algorithm=RslRlPpoAlgorithmCfg(
-      value_loss_coef=1.0,
-      use_clipped_value_loss=True,
-      clip_param=0.2,
-      entropy_coef=0.008,
-      num_learning_epochs=5,
-      num_mini_batches=4,
-      learning_rate=1.0e-3,
-      schedule="adaptive",
-      gamma=0.99,
-      lam=0.95,
-      desired_kl=0.01,
-      max_grad_norm=1.0,
-    ),
-    experiment_name="g1_hlip_clf_distillation_fine_tune",
-    save_interval=100,
-    num_steps_per_env=24,
-    max_iterations=10001,
+    algorithm=_make_distillation_mdn_algorithm_cfg(),
+    experiment_name="g1_hlip_clf_distillation_mdn",
+    save_interval=10,
+    num_steps_per_env=120,
+    max_iterations=500,
   )
