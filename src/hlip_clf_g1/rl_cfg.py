@@ -64,9 +64,9 @@ def _make_student_mdn_model_cfg(
     activation="elu",
     stochastic=stochastic,
     cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
-    mdn_num_modes=3,
+    mdn_num_modes=2,
     mdn_min_std=1.0e-3,
-    mdn_min_log_std=-5.0,
+    mdn_min_log_std=-3.5,
     mdn_max_log_std=2.0,
     mdn_inference_mode="top_mode_mean",
   )

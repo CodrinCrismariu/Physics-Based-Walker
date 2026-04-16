@@ -329,10 +329,10 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # ── Command ────────────────────────────────────────────────────────
   cfg.commands["hlip"].z_sw_max_range = (0.1, 0.3)
   # Teacher policy uses time-based stance switching and replanning only.
-  cfg.commands["hlip"].touchdown_switch_enabled = False
-  cfg.commands["hlip"].phase_end_stance_flip_only = True
-  cfg.commands["hlip"].mpc_contact_recovery_enabled = False
-  cfg.commands["hlip"].mpc_replan_wait_for_stance_contact = False
+  # cfg.commands["hlip"].touchdown_switch_enabled = False
+  # cfg.commands["hlip"].phase_end_stance_flip_only = True
+  # cfg.commands["hlip"].mpc_contact_recovery_enabled = False
+  # cfg.commands["hlip"].mpc_replan_wait_for_stance_contact = False
   joint_pos_action = cfg.actions["joint_pos"]
   assert isinstance(joint_pos_action, JointPositionActionCfg)
   joint_pos_action.scale = {

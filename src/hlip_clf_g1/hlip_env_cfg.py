@@ -505,5 +505,6 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       ang_vel_z=(0.0, 0.0),
     ),
   }
+  config.commands["hlip"].mpc_contact_recompute_grace_period_s = 0.4
 
   return config

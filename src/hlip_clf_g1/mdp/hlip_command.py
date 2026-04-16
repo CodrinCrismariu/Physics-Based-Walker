@@ -274,7 +274,7 @@ class HLIPCommandTerm(CommandTerm):
     self._touchdown_min_phase = float(getattr(cfg, "touchdown_min_phase", 0.35))
     self._touchdown_timeout_phase = float(getattr(cfg, "touchdown_timeout_phase", 1.20))
     self._touchdown_contact_grace_s = max(
-      float(getattr(cfg, "touchdown_contact_grace_period_s", 0.1)),
+      float(getattr(cfg, "touchdown_contact_grace_period_s", 0.15)),
       0.0,
     )
     self._mpc_contact_recompute_grace_s = max(
@@ -313,6 +313,10 @@ class HLIPCommandTerm(CommandTerm):
     self._mpc_w_vel = float(getattr(cfg, "mpc_w_vel", 1.0))
     self._mpc_w_time = float(getattr(cfg, "mpc_w_time", 0.2))
     self._mpc_w_foot = float(getattr(cfg, "mpc_w_foot", 0.05))
+    self._mpc_non_steppable_cost = max(
+      float(getattr(cfg, "mpc_non_steppable_cost", 1.0e6)),
+      0.0,
+    )
 
     x_min, x_max = getattr(cfg, "mpc_foot_target_range_x", (-0.4, 0.8))
     self._mpc_x_min = float(x_min)
@@ -529,26 +533,27 @@ class HLIPCommandTerm(CommandTerm):
     stance_z_w: torch.Tensor | None = None,
     sensor_pos_w: torch.Tensor | None = None,
     sensor_quat_w: torch.Tensor | None = None,
-  ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Classify steppable and near-edge heightmap cells.
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Classify steppable, near-edge, and height-blocked heightmap cells.
 
     A cell is edge-safe when all four cardinal neighbors are valid and
     height differences are below the
     configured threshold. Optionally enforces a maximum absolute height delta
-    to the stance foot, then applies a clearance margin from blocked cells.
+    to the stance foot as a hard unsteppable condition, then applies a
+    clearance margin from blocked cells.
     Cells that pass edge checks but fail clearance are marked as near-edge.
     """
     valid_hits = distances >= 0.0
     if self._hm_num_x <= 0 or self._hm_num_y <= 0:
-      return valid_hits, torch.zeros_like(valid_hits)
+      return valid_hits, torch.zeros_like(valid_hits), torch.zeros_like(valid_hits)
 
     num_envs, num_rays, _ = hit_pos_w.shape
     if num_rays != self._hm_num_x * self._hm_num_y:
-      return valid_hits, torch.zeros_like(valid_hits)
+      return valid_hits, torch.zeros_like(valid_hits), torch.zeros_like(valid_hits)
 
     hm_sensor = self._env.scene.sensors.get("heightmap", None)
     if hm_sensor is None:
-      return valid_hits, torch.zeros_like(valid_hits)
+      return valid_hits, torch.zeros_like(valid_hits), torch.zeros_like(valid_hits)
 
     pattern = hm_sensor.cfg.pattern
     resolution = float(pattern.resolution)
@@ -556,7 +561,7 @@ class HLIPCommandTerm(CommandTerm):
     def _classify_from_grids(
       z_grid: torch.Tensor,
       d_grid: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
       z_pad = torch.full(
         (num_envs, self._hm_num_y + 2, self._hm_num_x + 2),
         float("inf"),
@@ -588,12 +593,16 @@ class HLIPCommandTerm(CommandTerm):
       c_left = (d_left >= 0.0) & (torch.abs(z_grid - z_left) <= th)
       c_right = (d_right >= 0.0) & (torch.abs(z_grid - z_right) <= th)
 
-      is_non_edge_grid = c_up & c_down & c_left & c_right & (d_grid >= 0.0)
+      valid_grid = d_grid >= 0.0
+      is_non_edge_grid = c_up & c_down & c_left & c_right & valid_grid
 
+      height_blocked_grid = torch.zeros_like(is_non_edge_grid)
       if stance_z_w is not None and self._hm_max_stance_height_delta > 0.0:
         stance_z = stance_z_w.view(num_envs, 1, 1)
-        stance_delta_ok = torch.abs(z_grid - stance_z) <= self._hm_max_stance_height_delta
-        is_non_edge_grid = is_non_edge_grid & stance_delta_ok
+        height_blocked_grid = (
+          valid_grid
+          & (torch.abs(z_grid - stance_z) > self._hm_max_stance_height_delta)
+        )
 
       near_edge_grid = torch.zeros_like(is_non_edge_grid)
       if self._hm_edge_clearance_distance > 0.0:
@@ -609,8 +618,11 @@ class HLIPCommandTerm(CommandTerm):
           padding=clearance_cells,
         ).squeeze(1) > 0.5
         near_edge_grid = is_non_edge_grid & blocked_neighborhood
-      steppable_grid = is_non_edge_grid & (~near_edge_grid)
-      return steppable_grid, near_edge_grid
+
+      # Height-delta violations are hard unsteppable regardless of edge class.
+      near_edge_grid = near_edge_grid & (~height_blocked_grid)
+      steppable_grid = is_non_edge_grid & (~near_edge_grid) & (~height_blocked_grid)
+      return steppable_grid, near_edge_grid, height_blocked_grid
 
     if sensor_pos_w is None or sensor_quat_w is None:
       hm_data = hm_sensor.data
@@ -626,8 +638,12 @@ class HLIPCommandTerm(CommandTerm):
         # Fall back to legacy reshape behavior when sensor pose batch is ambiguous.
         z = hit_pos_w[:, :, 2].reshape(num_envs, self._hm_num_y, self._hm_num_x)
         d = distances.reshape(num_envs, self._hm_num_y, self._hm_num_x)
-        steppable, near_edge = _classify_from_grids(z, d)
-        return steppable.reshape(num_envs, num_rays), near_edge.reshape(num_envs, num_rays)
+        steppable, near_edge, height_blocked = _classify_from_grids(z, d)
+        return (
+          steppable.reshape(num_envs, num_rays),
+          near_edge.reshape(num_envs, num_rays),
+          height_blocked.reshape(num_envs, num_rays),
+        )
 
     assert sensor_pos_w is not None
     assert sensor_quat_w is not None
@@ -661,8 +677,12 @@ class HLIPCommandTerm(CommandTerm):
     if not bool(torch.all(one_to_one)):
       z = hit_pos_w[:, :, 2].reshape(num_envs, self._hm_num_y, self._hm_num_x)
       d = distances.reshape(num_envs, self._hm_num_y, self._hm_num_x)
-      steppable, near_edge = _classify_from_grids(z, d)
-      return steppable.reshape(num_envs, num_rays), near_edge.reshape(num_envs, num_rays)
+      steppable, near_edge, height_blocked = _classify_from_grids(z, d)
+      return (
+        steppable.reshape(num_envs, num_rays),
+        near_edge.reshape(num_envs, num_rays),
+        height_blocked.reshape(num_envs, num_rays),
+      )
 
     # Scatter ray data into a canonical [num_y, num_x] grid.
     z_grid = torch.full(
@@ -682,14 +702,15 @@ class HLIPCommandTerm(CommandTerm):
     z_world = hit_pos_w[..., 2]
     z_grid[batch_ids[valid_scatter], iy[valid_scatter], ix[valid_scatter]] = z_world[valid_scatter]
     d_grid[batch_ids[valid_scatter], iy[valid_scatter], ix[valid_scatter]] = distances[valid_scatter]
-    steppable_grid, near_edge_grid = _classify_from_grids(z_grid, d_grid)
+    steppable_grid, near_edge_grid, height_blocked_grid = _classify_from_grids(z_grid, d_grid)
 
     ix_safe = ix.clamp(min=0, max=self._hm_num_x - 1)
     iy_safe = iy.clamp(min=0, max=self._hm_num_y - 1)
     steppable = steppable_grid[batch_ids, iy_safe, ix_safe]
     near_edge = near_edge_grid[batch_ids, iy_safe, ix_safe]
+    height_blocked = height_blocked_grid[batch_ids, iy_safe, ix_safe]
     mask_valid = in_bounds & valid_hits
-    return steppable & mask_valid, near_edge & mask_valid
+    return steppable & mask_valid, near_edge & mask_valid, height_blocked & mask_valid
 
   def _compute_non_edge_mask(
     self,
@@ -700,7 +721,7 @@ class HLIPCommandTerm(CommandTerm):
     sensor_quat_w: torch.Tensor | None = None,
   ) -> torch.Tensor:
     """Backward-compatible steppability mask used by existing MPC code paths."""
-    steppable, _ = self._compute_steppability_masks(
+    steppable, _, _ = self._compute_steppability_masks(
       hit_pos_w,
       distances,
       stance_z_w,
@@ -712,12 +733,12 @@ class HLIPCommandTerm(CommandTerm):
   def _classify_camera_rays_by_heightmap(
     self,
     env_idx: int,
-  ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-    """Classify camera rays as steppable / near-edge via the heightmap map."""
+  ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+    """Classify camera rays as steppable, near-edge, or height-blocked."""
     if "head_camera_rays" not in self._env.scene.sensors:
-      return None, None
+      return None, None, None
     if "heightmap" not in self._env.scene.sensors:
-      return None, None
+      return None, None, None
 
     ray_sensor = self._env.scene.sensors["head_camera_rays"]
     ray_data = ray_sensor.data
@@ -725,14 +746,14 @@ class HLIPCommandTerm(CommandTerm):
     hm_data = hm_sensor.data
 
     if ray_data.hit_pos_w is None or ray_data.distances is None:
-      return None, None
+      return None, None, None
     if (
       hm_data.hit_pos_w is None
       or hm_data.distances is None
       or hm_data.pos_w is None
       or hm_data.quat_w is None
     ):
-      return None, None
+      return None, None, None
 
     hit_pos_w = ray_data.hit_pos_w[env_idx : env_idx + 1]
     ray_dist = ray_data.distances[env_idx : env_idx + 1]
@@ -742,7 +763,7 @@ class HLIPCommandTerm(CommandTerm):
     hm_quat = hm_data.quat_w[env_idx : env_idx + 1]
     stance_z = self.stance_foot_pos_0[env_idx, 2].view(1)
 
-    steppable_cells, near_edge_cells = self._compute_steppability_masks(
+    steppable_cells, near_edge_cells, height_blocked_cells = self._compute_steppability_masks(
       hm_hit,
       hm_dist,
       stance_z,
@@ -761,7 +782,7 @@ class HLIPCommandTerm(CommandTerm):
       num_x = int(round(size_x / resolution)) + 1
       num_y = int(round(size_y / resolution)) + 1
     if num_x * num_y != num_hm_rays:
-      return None, None
+      return None, None, None
 
     num_rays = int(ray_dist.shape[1])
     ray_idx_lut = torch.full((1, num_y, num_x), -1, device=self.device, dtype=torch.long)
@@ -794,17 +815,19 @@ class HLIPCommandTerm(CommandTerm):
 
     steppable_flat = torch.gather(steppable_cells, dim=1, index=flat_idx_safe)
     near_edge_flat = torch.gather(near_edge_cells, dim=1, index=flat_idx_safe)
+    height_blocked_flat = torch.gather(height_blocked_cells, dim=1, index=flat_idx_safe)
     valid_mask = in_bounds & lut_valid & (ray_dist >= 0.0)
 
     steppable_flat = steppable_flat & valid_mask
     near_edge_flat = near_edge_flat & valid_mask
-    return steppable_flat.squeeze(0), near_edge_flat.squeeze(0)
+    height_blocked_flat = height_blocked_flat & valid_mask
+    return steppable_flat.squeeze(0), near_edge_flat.squeeze(0), height_blocked_flat.squeeze(0)
 
   def _get_heightmap_candidates(
     self,
     env_ids: torch.Tensor,
-  ) -> tuple[torch.Tensor, torch.Tensor] | None:
-    """Return stance-local heightmap hits and non-edge validity mask."""
+  ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | None:
+    """Return stance-local heightmap hits, validity, and edge penalties."""
     if "heightmap" not in self._env.scene.sensors:
       return None
 
@@ -817,14 +840,18 @@ class HLIPCommandTerm(CommandTerm):
     sensor_pos_w = hm_data.pos_w[env_ids]
     sensor_quat_w = hm_data.quat_w[env_ids]
     stance_z = self.stance_foot_pos_0[env_ids, 2]
-    non_edge = self._compute_non_edge_mask(
+    steppable, _, height_blocked = self._compute_steppability_masks(
       hit_pos_w,
       distances,
       stance_z,
       sensor_pos_w=sensor_pos_w,
       sensor_quat_w=sensor_quat_w,
     )
-    valid_hits = non_edge & (distances >= 0.0)
+    valid_hits = (distances >= 0.0) & (~height_blocked)
+    edge_penalty = torch.zeros_like(distances)
+    if self._mpc_non_steppable_cost > 0.0:
+      penalized_hits = valid_hits & (~steppable)
+      edge_penalty[penalized_hits] = self._mpc_non_steppable_cost
 
     n, num_rays, _ = hit_pos_w.shape
     rel_w = hit_pos_w - self.stance_foot_pos_0[env_ids].unsqueeze(1)
@@ -832,7 +859,7 @@ class HLIPCommandTerm(CommandTerm):
     stance_quat = self.stance_foot_ori_quat_0[env_ids].repeat_interleave(num_rays, dim=0)
     rel_local = _to_local_frame(rel_w_flat, stance_quat).reshape(n, num_rays, 3)
 
-    return rel_local, valid_hits
+    return rel_local, valid_hits, edge_penalty
 
   def _solve_discrete_mpc(
     self,
@@ -840,6 +867,7 @@ class HLIPCommandTerm(CommandTerm):
     cmd_xy: torch.Tensor,
     local_hits: torch.Tensor,
     valid_hits: torch.Tensor,
+    edge_penalty: torch.Tensor,
   ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Solve a discrete MPC preview by minimizing velocity error over feasible candidates."""
     n = len(env_ids)
@@ -858,6 +886,7 @@ class HLIPCommandTerm(CommandTerm):
     x_abs = local_hits[:, :, 0].unsqueeze(-1)
     y_abs = local_hits[:, :, 1].unsqueeze(-1)
     valid = valid_hits.unsqueeze(-1).expand(-1, -1, num_t)
+    edge_penalty_expanded = edge_penalty.unsqueeze(-1).expand(-1, -1, num_t)
     t_grid = self._mpc_t_grid.view(1, 1, num_t)
     prev_foot_abs = torch.zeros(n, 3, device=self.device)
 
@@ -889,7 +918,7 @@ class HLIPCommandTerm(CommandTerm):
       vx_pred = dx / t_grid
       vy_pred = (dy - side_offset_e) / t_grid
       vel_err = (vx_pred - cmd_x) ** 2 + (vy_pred - cmd_y) ** 2
-      cost = vel_err
+      cost = vel_err + edge_penalty_expanded
 
       signed_y_ok = (dy * side_sign_e) >= self._mpc_signed_y_min
       feasible = valid & x_ok & y_ok & step_len_ok & signed_y_ok
@@ -967,11 +996,15 @@ class HLIPCommandTerm(CommandTerm):
       self.full_gait_period[env_ids] = 2.0 * (self.T[env_ids] - self.T_ds)
       return
 
-    local_hits, valid_hits = candidates
+    local_hits, valid_hits, edge_penalty = candidates
     base_cmd = self.vel_command[env_ids, :2].clone()
 
     best_t, best_foot, best_cost, best_feasible, feasible_steps = self._solve_discrete_mpc(
-      env_ids, base_cmd, local_hits, valid_hits
+      env_ids,
+      base_cmd,
+      local_hits,
+      valid_hits,
+      edge_penalty,
     )
     best_cmd = base_cmd
     fallback_used = ~best_feasible
@@ -2118,7 +2151,7 @@ class HLIPCommandTerm(CommandTerm):
         and ray_data.pos_w is not None
         and ray_data.quat_w is not None
       ):
-        steppable_flat, near_edge_flat = self._classify_camera_rays_by_heightmap(batch)
+        steppable_flat, near_edge_flat, height_blocked_flat = self._classify_camera_rays_by_heightmap(batch)
 
         frame_pos = ray_data.pos_w[batch]
         frame_quat = ray_data.quat_w[batch]
@@ -2139,7 +2172,9 @@ class HLIPCommandTerm(CommandTerm):
           if float(ray_dist[i].item()) < 0.0:
             continue
 
-          if near_edge_flat is not None and bool(near_edge_flat[i].item()):
+          if height_blocked_flat is not None and bool(height_blocked_flat[i].item()):
+            color = (0.2, 0.45, 1.0, 0.85)
+          elif near_edge_flat is not None and bool(near_edge_flat[i].item()):
             color = (1.0, 0.55, 0.0, 0.8)
           elif steppable_flat is not None and bool(steppable_flat[i].item()):
             color = (0.2, 1.0, 0.2, 0.65)
@@ -2162,7 +2197,7 @@ class HLIPCommandTerm(CommandTerm):
       if hm_data.hit_pos_w is not None and hm_data.distances is not None:
         hit_pos_b = hm_data.hit_pos_w[batch]
         dists_b = hm_data.distances[batch]
-        steppable_b, near_edge_b = self._compute_steppability_masks(
+        steppable_b, near_edge_b, height_blocked_b = self._compute_steppability_masks(
           hit_pos_b.unsqueeze(0),
           dists_b.unsqueeze(0),
           self.stance_foot_pos_0[batch, 2].unsqueeze(0),
@@ -2171,18 +2206,22 @@ class HLIPCommandTerm(CommandTerm):
         )
         steppable_b = steppable_b.squeeze(0)
         near_edge_b = near_edge_b.squeeze(0)
+        height_blocked_b = height_blocked_b.squeeze(0)
 
         if self._hm_num_x > 0 and self._hm_num_y > 0:
           hit_grid = hit_pos_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x, 3)
           dist_grid = dists_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
           steppable_grid = steppable_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
           near_edge_grid = near_edge_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
+          height_blocked_grid = height_blocked_b.cpu().numpy().reshape(self._hm_num_y, self._hm_num_x)
 
           for i in range(self._hm_num_y):
             for j in range(self._hm_num_x):
               if dist_grid[i, j] >= 0:
                 h_pos = hit_grid[i, j]
-                if near_edge_grid[i, j]:
+                if height_blocked_grid[i, j]:
+                  col = (0.2, 0.45, 1.0, 0.9)
+                elif near_edge_grid[i, j]:
                   col = (1.0, 0.55, 0.0, 0.85)
                 elif steppable_grid[i, j]:
                   col = (0.0, 1.0, 0.0, 0.8)
@@ -2323,7 +2362,7 @@ class HLIPCommandCfg(CommandTermCfg):
 
   # MPC foothold/time planning.
   mpc_enabled: bool = False
-  """Enable edge-constrained MPC foothold and step-time planning."""
+  """Enable edge-aware MPC foothold and step-time planning."""
 
   mpc_horizon: int = 3
   """Preview horizon (number of planned steps)."""
@@ -2362,7 +2401,10 @@ class HLIPCommandCfg(CommandTermCfg):
   """Minimum distance [m] from terrain boundaries for foothold steppability; <=0 disables."""
 
   mpc_max_stance_height_delta: float = -1.0
-  """Max |z_hit - z_stance| [m] for steppability; <=0 disables this filter."""
+  """Max |z_hit - z_stance| [m] as a hard unsteppable filter; <=0 disables this."""
+
+  mpc_non_steppable_cost: float = 1.0e6
+  """Huge additive cost for non-steppable/edge hits; keeps them selectable as last resort."""
 
   mpc_fallback_scales: tuple[float, ...] = (1.0, 0.75, 0.5, 0.25, 0.0)
   """Velocity scaling factors used when searching fallback feasible plans."""
@@ -2376,10 +2418,10 @@ class HLIPCommandCfg(CommandTermCfg):
   touchdown_min_phase: float = 0.35
   """Earliest normalized swing phase at which touchdown can trigger switch."""
 
-  touchdown_contact_grace_period_s: float = 0.1
+  touchdown_contact_grace_period_s: float = 0.15
   """Required continuous swing-foot contact duration [s] before switching stance."""
 
-  touchdown_timeout_phase: float = 1.20
+  touchdown_timeout_phase: float = 100000000
   """Fallback forced switch threshold when touchdown is not detected."""
 
   phase_end_stance_flip_only: bool = False
