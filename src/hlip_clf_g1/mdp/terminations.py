@@ -40,6 +40,21 @@ def pelvis_too_low(
   return (pelvis_z - max_foot_z) < minimum_distance
 
 
+def foot_height_too_low(
+  env: ManagerBasedRlEnv,
+  minimum_height: float,
+  foot_body_name: str,
+) -> torch.Tensor:
+  """Terminate when either foot drops below a world-frame height threshold."""
+  robot = env.scene["robot"]
+
+  foot_ids, _ = robot.find_bodies(foot_body_name)
+  foot_pos_w = robot.data.body_link_pos_w[:, foot_ids, :]  # (num_envs, num_feet, 3)
+
+  min_foot_z = torch.min(foot_pos_w[:, :, 2], dim=-1)[0]
+  return min_foot_z < minimum_height
+
+
 def commanded_but_stationary(
   env: ManagerBasedRlEnv,
   command_name: str,

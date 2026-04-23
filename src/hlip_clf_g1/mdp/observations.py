@@ -204,6 +204,21 @@ def hlip_velocity_command(
   return cmd.vel_command
 
 
+def hlip_velocity_command_linear_only(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+) -> torch.Tensor:
+  """Commanded velocity with angular component masked to zero.
+
+  Returns [vx, vy, 0.0] with shape (num_envs, 3), so student observation can
+  receive only linear command information while keeping the same tensor layout.
+  """
+  cmd = hlip_velocity_command(env, command_name)
+  cmd_linear_only = cmd.clone()
+  cmd_linear_only[:, 2] = 0.0
+  return cmd_linear_only
+
+
 # =====================================================================
 # Base height observation
 # =====================================================================

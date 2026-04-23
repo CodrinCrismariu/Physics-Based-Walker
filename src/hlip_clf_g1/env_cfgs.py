@@ -26,6 +26,7 @@ from mjlab.terrains import BoxSteppingStonesTerrainCfg, BoxPyramidStairsTerrainC
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 from mjlab.terrains import TerrainImporterCfg
 from hlip_clf_g1 import mdp
+from hlip_clf_g1.custom_terrains import TwoPlatformSteppingCorridorTerrainCfg
 from hlip_clf_g1.hlip_env_cfg import make_hlip_env_cfg, make_hlip_distillation_env_cfg
 
 
@@ -111,8 +112,8 @@ def _make_head_camera_sensor() -> CameraSensorCfg:
   return CameraSensorCfg(
     name="head_camera",
     parent_body="robot/torso_link",
-    pos=(0.15, 0.0, 0.3),
-    quat=(-0.6927357, -0.1405364, 0.1404245, 0.6932876),
+    pos=(0.15, 0.0, 0.3),#(0.06, 0.0, 0.45),
+    quat=(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
     width=HEAD_CAMERA_WIDTH,
     height=HEAD_CAMERA_HEIGHT,
     fovy=55.2,
@@ -137,9 +138,9 @@ def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
       "asset_cfg": camera_asset_cfg,
       "operation": "add",
       "ranges": {
-        0: (-0.025, 0.025),
-        1: (-0.025, 0.025),
-        2: (-0.025, 0.025),
+        0: (-0.02, 0.02),
+        1: (-0.02, 0.02),
+        2: (-0.02, 0.02),
       },
     },
   )
@@ -251,6 +252,62 @@ def _apply_stairs_play_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
   cfg.curriculum.pop("stairs_velocity_commands", None)
 
 
+def _apply_two_platform_corridor_reset_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Keep reset jitter on the start platform for corridor terrains."""
+  reset_base = cfg.events.get("reset_base")
+  if reset_base is None or reset_base.params is None:
+    return
+
+  reset_base.params["pose_range"] = {
+    "x": (-0.3, 0.3),
+    "y": (-0.25, 0.25),
+    # Corridor advances along +x, so keep a fixed heading toward platform B.
+    "yaw": (0.0, 0.0),
+  }
+
+
+def _apply_two_platform_corridor_command_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Use corridor command sampling with yaw-hold feedback."""
+  command_cfg = cfg.commands["hlip"]
+
+  # Sample forward velocity command for this terrain/task.
+  command_cfg.rel_standing_envs = 0.0
+  command_cfg.ranges.lin_vel_x = (0.0, 0.6)
+  command_cfg.ranges.lin_vel_y = (0.0, 0.0)
+  command_cfg.ranges.ang_vel_z = (0.0, 0.0)
+  command_cfg.fixed_velocity_command_enabled = False
+
+  # Keep the torso heading aligned with +x corridor direction.
+  command_cfg.yaw_hold_enabled = True
+  command_cfg.yaw_hold_target = 0.0
+  command_cfg.yaw_hold_kp = 1.8
+  command_cfg.yaw_hold_max_ang_vel = 0.8
+
+  # Disable viewer manual sliders for this corridor task.
+  command_cfg.manual_control = False
+
+
+def _apply_distillation_push_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Use gentler interval pushes for distillation robustness training."""
+  push_event = cfg.events.get("push_robot")
+  if push_event is None or push_event.params is None:
+    return
+
+  velocity_range = push_event.params.get("velocity_range")
+  if not isinstance(velocity_range, dict):
+    return
+
+  velocity_range.update(
+    {
+      "x": (-0.2, 0.2),
+      "y": (-0.2, 0.2),
+      "roll": (-0.08, 0.08),
+      "pitch": (-0.08, 0.08),
+      "yaw": (-0.08, 0.08),
+    }
+  )
+
+
 def _apply_distillation_task_overrides(
   cfg: ManagerBasedRlEnvCfg,
   play: bool,
@@ -259,14 +316,15 @@ def _apply_distillation_task_overrides(
   cfg.observations = distillation_cfg.observations
   cfg.commands = distillation_cfg.commands
   cfg.terminations = distillation_cfg.terminations
+  _apply_distillation_push_overrides(cfg)
 
   _add_head_camera_sensor(cfg)
   if play:
     cfg.commands["hlip"].manual_control = True
     cfg.observations["student_vec"].enable_corruption = False
     _make_play_mode_depth_deterministic(cfg)
-  # else:
-  #   _add_head_camera_dr_events(cfg)
+  else:
+    _add_head_camera_dr_events(cfg)
 
 def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create Unitree G1 flat-terrain HLIP + CLF walking configuration."""
@@ -301,7 +359,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   heightmap_cfg = RayCastSensorCfg(
     name="heightmap",
     frame=ObjRef(type="body", name="pelvis", entity="robot"),
-    pattern=GridPatternCfg(size=(3, 1.5), resolution=0.05),
+    pattern=GridPatternCfg(size=(4, 1.5), resolution=0.025),
     ray_alignment="yaw",
     max_distance=2.0,
     debug_vis=False,
@@ -381,7 +439,7 @@ SIMPLE_STEPPING_STONE_TERRAINS_CFG = TerrainGeneratorCfg(
     #   proportion=0.5,
     #   step_height_range=(0.05, 0.2),
     #   step_width=0.4,
-    #   platform_width=1,
+    #   platform_width=1,ht
     # ),
     # "inverted_pyramid_stairs": BoxInvertedPyramidStairsTerrainCfg(
     #   proportion=0.5,
@@ -393,10 +451,44 @@ SIMPLE_STEPPING_STONE_TERRAINS_CFG = TerrainGeneratorCfg(
       proportion=1.0,
       stone_size_range=(0.33, 0.36),
       stone_distance_range=(0.18, 0.22),
-      stone_height=0.14,
-      stone_height_variation=0.1,
-      floor_depth=0.8,
+      stone_height=0.1,
+      stone_height_variation=0.05,
+      floor_depth=0.35,
       platform_width=1.2,
+    ),
+  },
+  add_lights=True,
+)
+
+
+TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG = TerrainGeneratorCfg(
+  size=(12.0, 4.0),
+  border_width=20.0,
+  num_rows=8,
+  num_cols=8,
+  curriculum=False,
+  sub_terrains={
+    "two_platform_corridor": TwoPlatformSteppingCorridorTerrainCfg(
+      proportion=1.0,
+      platform_height=0.1,
+      floor_depth=0.2,
+      border_width=0.2,
+      platform_length_ratio=0.18,
+      platform_width_ratio=0.85,
+      platform_edge_margin_ratio=0.03,
+      corridor_width_ratio=0.4,
+      stone_length_range=(0.3, 0.35),#(0.29, 0.35),
+      stone_width_range=(0.3, 0.35),#(0.29, 0.35),
+      stone_gap_range=(0.15, 0.35),
+      stone_height_variation=0.04,
+      stone_size_variation=0.06,
+      lateral_displacement_range=0.12,
+      zigzag_offset_range=(0.1, 0.21),
+      pair_probability=0.35,
+      pair_lateral_spacing_range=(0.35, 0.6),
+      pair_width_scale_range=(0.72, 0.92),
+      split_pair_probability=0.7,
+      split_pair_center_jitter=0.05,
     ),
   },
   add_lights=True,
@@ -417,6 +509,26 @@ def unitree_g1_hlip_simple_stepping_stone_env_cfg(
   )
   _disable_flat_swing_height_randomization(cfg)
   _apply_complex_terrain_contact_limits(cfg)
+
+  return cfg
+
+
+def unitree_g1_hlip_two_platform_stepping_corridor_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 elongated two-platform stepping-corridor terrain configuration."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  _configure_generated_terrain(
+    cfg,
+    terrain_cfg=TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG,
+    max_init_terrain_level=0,
+    curriculum=False,
+  )
+  _disable_flat_swing_height_randomization(cfg)
+  _apply_complex_terrain_contact_limits(cfg)
+  _apply_two_platform_corridor_reset_overrides(cfg)
+  _apply_two_platform_corridor_command_overrides(cfg)
 
   return cfg
 
@@ -494,6 +606,33 @@ def unitree_g1_hlip_distillation_stepping_stone_env_cfg(
   )
   _disable_flat_swing_height_randomization(cfg)
   _apply_complex_terrain_contact_limits(cfg)
+
+  return cfg
+
+
+def unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 distillation config on elongated two-platform corridor terrain."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  _apply_distillation_task_overrides(cfg, play=play)
+  _configure_generated_terrain(
+    cfg,
+    terrain_cfg=TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG,
+    max_init_terrain_level=0,
+    curriculum=False,
+  )
+  _disable_flat_swing_height_randomization(cfg)
+  _apply_complex_terrain_contact_limits(cfg)
+  _apply_two_platform_corridor_reset_overrides(cfg)
+  _apply_two_platform_corridor_command_overrides(cfg)
+
+  # MDN distillation student observes only linear command; teacher keeps full
+  # [vx, vy, yaw_rate] command in privileged observations.
+  cfg.observations["student_vec"].terms["velocity_commands"].func = (  # type: ignore[index]
+    mdp.hlip_velocity_command_linear_only
+  )
 
   return cfg
 

@@ -297,13 +297,13 @@ class HLIPCommandTerm(CommandTerm):
     self._touchdown_enabled = bool(getattr(cfg, "touchdown_switch_enabled", True))
     self._touchdown_sensor_name = str(getattr(cfg, "touchdown_sensor_name", "feet_ground_contact"))
     self._touchdown_min_phase = float(getattr(cfg, "touchdown_min_phase", 0.60))
-    self._touchdown_timeout_phase = float(getattr(cfg, "touchdown_timeout_phase", 1000))
+    self._touchdown_timeout_phase = float(getattr(cfg, "touchdown_timeout_phase", 1.20))
     self._touchdown_contact_grace_s = max(
-      float(getattr(cfg, "touchdown_contact_grace_period_s", 0.05)),
+      float(getattr(cfg, "touchdown_contact_grace_period_s", 0.10)),
       0.0,
     )
     self._touchdown_min_force_n = max(
-      float(getattr(cfg, "touchdown_min_force_n", 75.0)),
+      float(getattr(cfg, "touchdown_min_force_n", 50.0)),
       0.0,
     )
     self._touchdown_debounce_s = max(
@@ -934,144 +934,147 @@ class HLIPCommandTerm(CommandTerm):
     num_cands = num_rays * num_t
     
     # -----------------------------------------------------------------
-    # ITERATIVE STOCHASTIC ROLLOUT
-    # Evaluate S independent step sequences.
-    # Sample 0 is strictly greedy. Samples 1..(S-1) add Gumbel noise.
-    # We iterate over S to save VRAM compared to expanding all tensors.
+    # PARALLEL STOCHASTIC ROLLOUT
+    # Evaluate S independent step sequences simultaneously.
+    # Sample 0 is strictly greedy. Samples 1..(S-1) add Gumbel noise to 
+    # the step costs to stochastically explore different footholds.
+    # At the end of the horizon, the sequence with the lowest total cost 
+    # (and fewest fallbacks) is selected.
     # -----------------------------------------------------------------
-    S = 16  # Iterative loop allows large S with very low VRAM usage
+    S = 32  # Number of parallel rollouts
     temperature = 0.1  # Exploration noise scaling
     
-    # Pre-flatten candidates to simplify broadcasting
+    plan_t_samples = torch.full((n, S, horizon), self._mpc_t_nom, device=self.device)
+    plan_foot_samples = torch.zeros(n, S, horizon, 3, device=self.device)
+    total_cost_samples = torch.zeros(n, S, device=self.device)
+    all_feasible_samples = torch.ones(n, S, dtype=torch.bool, device=self.device)
+    feasible_steps_samples = torch.zeros(n, S, device=self.device)
+
+    # Pre-flatten candidates to simplify broadcasting over the S dimension
     cand_x = local_hits[:, :, 0].unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_y = local_hits[:, :, 1].unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_z = local_hits[:, :, 2].unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_valid = valid_hits.unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_penalty = edge_penalty.unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_t = self._mpc_t_grid.view(1, num_t).expand(n, num_rays, num_t).reshape(n, num_cands)
+    
+    prev_foot_abs = torch.zeros(n, S, 3, device=self.device)
 
-    best_plan_t = torch.full((n, horizon), self._mpc_t_nom, device=self.device)
-    best_plan_foot = torch.zeros(n, horizon, 3, device=self.device)
-    best_total_cost = torch.full((n,), float("inf"), device=self.device)
-    best_all_feasible = torch.zeros(n, dtype=torch.bool, device=self.device)
-    best_feasible_steps = torch.zeros(n, device=self.device)
-
-    for s in range(S):
-      plan_t_s = torch.full((n, horizon), self._mpc_t_nom, device=self.device)
-      plan_foot_s = torch.zeros(n, horizon, 3, device=self.device)
-      total_cost_s = torch.zeros(n, device=self.device)
-      all_feasible_s = torch.ones(n, dtype=torch.bool, device=self.device)
-      feasible_steps_s = torch.zeros(n, device=self.device)
+    for k in range(horizon):
+      stance_k = torch.remainder(self.stance_idx[env_ids] + k, 2)
+      side_sign = torch.where(
+        stance_k == 0,
+        torch.full((n,), -1.0, device=self.device),
+        torch.full((n,), 1.0, device=self.device),
+      )
+      side_offset = side_sign * self.y_nom
       
-      prev_foot_abs = torch.zeros(n, 3, device=self.device)
+      cmd_x = cmd_xy[:, 0].view(n, 1, 1)
+      cmd_y = cmd_xy[:, 1].view(n, 1, 1)
+      side_offset_e = side_offset.view(n, 1, 1)
+      side_sign_e = side_sign.view(n, 1, 1)
 
-      for k in range(horizon):
-        stance_k = torch.remainder(self.stance_idx[env_ids] + k, 2)
-        side_sign = torch.where(
-          stance_k == 0,
-          torch.full((n,), -1.0, device=self.device),
-          torch.full((n,), 1.0, device=self.device),
-        )
-        side_offset = side_sign * self.y_nom
-        
-        cmd_x = cmd_xy[:, 0].view(n, 1)
-        cmd_y = cmd_xy[:, 1].view(n, 1)
-        side_offset_e = side_offset.view(n, 1)
-        side_sign_e = side_sign.view(n, 1)
+      dx = cand_x.view(n, 1, num_cands) - prev_foot_abs[:, :, 0].unsqueeze(-1)
+      dy = cand_y.view(n, 1, num_cands) - prev_foot_abs[:, :, 1].unsqueeze(-1)
+      dt = cand_t.view(n, 1, num_cands)
 
-        dx = cand_x - prev_foot_abs[:, 0].unsqueeze(-1)
-        dy = cand_y - prev_foot_abs[:, 1].unsqueeze(-1)
-        dt = cand_t
-
-        x_ok = (dx >= self._mpc_x_min) & (dx <= self._mpc_x_max)
-        dy_abs = torch.abs(dy)
-        y_ok = (dy_abs >= self._mpc_abs_y_min) & (dy_abs <= self._mpc_abs_y_max)
-        step_len_ok = torch.sqrt(torch.clamp(dx * dx + dy * dy, min=1e-8)) <= self._mpc_max_step_length
-        signed_y_ok = (dy * side_sign_e) >= self._mpc_signed_y_min
-        
-        feasible = cand_valid & x_ok & y_ok & step_len_ok & signed_y_ok
-
-        vx_pred = dx / dt
-        vy_pred = (dy - side_offset_e) / dt
-        vel_err = (vx_pred - cmd_x) ** 2 + (vy_pred - cmd_y) ** 2
-        
-        cost = vel_err + cand_penalty
-        cost = torch.where(feasible, cost, torch.full_like(cost, float("inf")))
-
-        if s == 0:
-            noisy_cost = cost
-        else:
-            gumbel_noise = -torch.log(-torch.log(torch.rand_like(cost) + 1e-10))
-            noisy_cost = cost + temperature * gumbel_noise
-
-        _, chosen_idx = torch.min(noisy_cost, dim=-1)  # (n,)
-        
-        chosen_t = torch.gather(cand_t, 1, chosen_idx.unsqueeze(-1)).squeeze(-1)
-        chosen_x = torch.gather(cand_x, 1, chosen_idx.unsqueeze(-1)).squeeze(-1)
-        chosen_y = torch.gather(cand_y, 1, chosen_idx.unsqueeze(-1)).squeeze(-1)
-        chosen_z = torch.gather(cand_z, 1, chosen_idx.unsqueeze(-1)).squeeze(-1)
-        chosen_foot = torch.stack([chosen_x, chosen_y, chosen_z], dim=-1)
-        
-        true_cost = torch.gather(cost, 1, chosen_idx.unsqueeze(-1)).squeeze(-1)
-        feasible_k = torch.isfinite(true_cost)
-        
-        feasible_steps_s += feasible_k.float()
-        all_feasible_s &= feasible_k
-
-        # Fallback logic
-        fallback_foot = prev_foot_abs.clone()
-        fallback_foot[:, 0] += cmd_xy[:, 0] * self._mpc_t_nom
-        fallback_dy = (side_offset + cmd_xy[:, 1]) * self._mpc_t_nom
-        fallback_dy_abs = torch.clamp(
-          torch.abs(fallback_dy),
-          min=self._mpc_abs_y_min,
-          max=self._mpc_abs_y_max,
-        )
-        fallback_dy_sign = torch.sign(fallback_dy)
-        fallback_dy_sign = torch.where(
-          torch.abs(fallback_dy_sign) > 0.0,
-          fallback_dy_sign,
-          side_sign,
-        )
-        fallback_foot[:, 1] += fallback_dy_abs * fallback_dy_sign
-        
-        fb_xy = fallback_foot[:, :2]  # (n, 2)
-        hit_xy = local_hits[:, :, :2]  # (n, num_rays, 2)
-        dist_sq = ((hit_xy - fb_xy.unsqueeze(1)) ** 2).sum(dim=-1)
-        dist_sq = torch.where(valid_hits, dist_sq, torch.full_like(dist_sq, float("inf")))
-        nearest_idx = dist_sq.argmin(dim=-1)
-        nearest_z = torch.gather(local_hits[:, :, 2], 1, nearest_idx.unsqueeze(-1)).squeeze(-1)
-        nearest_valid = torch.gather(valid_hits, 1, nearest_idx.unsqueeze(-1)).squeeze(-1)
-        fallback_foot[:, 2] = torch.where(nearest_valid, nearest_z, torch.zeros_like(nearest_z))
-
-        plan_t_s[:, k] = torch.where(
-          feasible_k,
-          chosen_t,
-          torch.full_like(chosen_t, self._mpc_t_nom),
-        )
-        plan_foot_s[:, k, :] = torch.where(
-          feasible_k.unsqueeze(-1),
-          chosen_foot,
-          fallback_foot,
-        )
-        prev_foot_abs = plan_foot_s[:, k, :]
-        total_cost_s += torch.where(feasible_k, true_cost, torch.zeros_like(true_cost))
-
-      # Heavily penalize samples that resulted in fallbacks
-      infeasibility_penalty = 1e6 * (horizon - feasible_steps_s)
-      total_cost_s += infeasibility_penalty
+      x_ok = (dx >= self._mpc_x_min) & (dx <= self._mpc_x_max)
+      dy_abs = torch.abs(dy)
+      y_ok = (dy_abs >= self._mpc_abs_y_min) & (dy_abs <= self._mpc_abs_y_max)
+      step_len_ok = torch.sqrt(torch.clamp(dx * dx + dy * dy, min=1e-8)) <= self._mpc_max_step_length
+      signed_y_ok = (dy * side_sign_e) >= self._mpc_signed_y_min
       
-      # Update best tracking
-      better_mask = total_cost_s < best_total_cost
-      
-      best_total_cost = torch.where(better_mask, total_cost_s, best_total_cost)
-      best_all_feasible = torch.where(better_mask, all_feasible_s, best_all_feasible)
-      best_feasible_steps = torch.where(better_mask, feasible_steps_s, best_feasible_steps)
-      
-      best_plan_t = torch.where(better_mask.unsqueeze(-1), plan_t_s, best_plan_t)
-      best_plan_foot = torch.where(better_mask.unsqueeze(-1).unsqueeze(-1), plan_foot_s, best_plan_foot)
+      valid_e = cand_valid.view(n, 1, num_cands)
+      feasible = valid_e & x_ok & y_ok & step_len_ok & signed_y_ok
 
-    return best_plan_t, best_plan_foot, best_total_cost, best_all_feasible, best_feasible_steps
+      vx_pred = dx / dt
+      vy_pred = (dy - side_offset_e) / dt
+      vel_err = (vx_pred - cmd_x) ** 2 + (vy_pred - cmd_y) ** 2
+      
+      cost = vel_err + cand_penalty.view(n, 1, num_cands)
+      cost = torch.where(feasible, cost, torch.full_like(cost, float("inf")))
+
+      # Add Gumbel noise to sample from the softmax distribution
+      gumbel_noise = -torch.log(-torch.log(torch.rand_like(cost) + 1e-10))
+      noisy_cost = cost + temperature * gumbel_noise
+      noisy_cost[:, 0, :] = cost[:, 0, :]  # Sample 0 remains purely greedy
+
+      _, chosen_idx = torch.min(noisy_cost, dim=-1)  # (n, S)
+      
+      # Extract properties of the chosen candidate for each sample
+      chosen_t = torch.gather(cand_t.view(n, 1, num_cands).expand(n, S, num_cands), 2, chosen_idx.unsqueeze(-1)).squeeze(-1)
+      chosen_x = torch.gather(cand_x.view(n, 1, num_cands).expand(n, S, num_cands), 2, chosen_idx.unsqueeze(-1)).squeeze(-1)
+      chosen_y = torch.gather(cand_y.view(n, 1, num_cands).expand(n, S, num_cands), 2, chosen_idx.unsqueeze(-1)).squeeze(-1)
+      chosen_z = torch.gather(cand_z.view(n, 1, num_cands).expand(n, S, num_cands), 2, chosen_idx.unsqueeze(-1)).squeeze(-1)
+      chosen_foot = torch.stack([chosen_x, chosen_y, chosen_z], dim=-1)
+      
+      true_cost = torch.gather(cost, 2, chosen_idx.unsqueeze(-1)).squeeze(-1)
+      feasible_k = torch.isfinite(true_cost)
+      
+      feasible_steps_samples += feasible_k.float()
+      all_feasible_samples &= feasible_k
+
+      # Fallback logic for branches that hit a dead end
+      fallback_foot = prev_foot_abs.clone()
+      fallback_foot[:, :, 0] += cmd_xy[:, 0].unsqueeze(-1) * self._mpc_t_nom
+      fallback_dy = (side_offset.unsqueeze(-1) + cmd_xy[:, 1].unsqueeze(-1)) * self._mpc_t_nom
+      fallback_dy_abs = torch.clamp(
+        torch.abs(fallback_dy),
+        min=self._mpc_abs_y_min,
+        max=self._mpc_abs_y_max,
+      )
+      fallback_dy_sign = torch.sign(fallback_dy)
+      fallback_dy_sign = torch.where(
+        torch.abs(fallback_dy_sign) > 0.0,
+        fallback_dy_sign,
+        side_sign.unsqueeze(-1),
+      )
+      fallback_foot[:, :, 1] += fallback_dy_abs * fallback_dy_sign
+      
+      # Heightmap lookup for fallback
+      fb_xy = fallback_foot[:, :, :2]  # (n, S, 2)
+      hit_xy = local_hits[:, :, :2]  # (n, num_rays, 2)
+      dist_sq = ((hit_xy.unsqueeze(1) - fb_xy.unsqueeze(2)) ** 2).sum(dim=-1)
+      dist_sq = torch.where(valid_hits.unsqueeze(1), dist_sq, torch.full_like(dist_sq, float("inf")))
+      nearest_idx = dist_sq.argmin(dim=-1)
+      nearest_z = torch.gather(local_hits[:, :, 2].unsqueeze(1).expand(n, S, num_rays), 2, nearest_idx.unsqueeze(-1)).squeeze(-1)
+      nearest_valid = torch.gather(valid_hits.unsqueeze(1).expand(n, S, num_rays), 2, nearest_idx.unsqueeze(-1)).squeeze(-1)
+      fallback_foot[:, :, 2] = torch.where(nearest_valid, nearest_z, torch.zeros_like(nearest_z))
+
+      plan_t_samples[:, :, k] = torch.where(
+        feasible_k,
+        chosen_t,
+        torch.full_like(chosen_t, self._mpc_t_nom),
+      )
+      plan_foot_samples[:, :, k, :] = torch.where(
+        feasible_k.unsqueeze(-1),
+        chosen_foot,
+        fallback_foot,
+      )
+      prev_foot_abs = plan_foot_samples[:, :, k, :]
+      total_cost_samples += torch.where(feasible_k, true_cost, torch.zeros_like(true_cost))
+
+    # Heavily penalize samples that resulted in fallbacks so that fully
+    # feasible sequences are always prioritized over slightly better velocity tracking
+    infeasibility_penalty = 1e6 * (horizon - feasible_steps_samples)
+    total_cost_samples += infeasibility_penalty
+
+    # Select the winning sequence across the S samples
+    best_sample_cost, best_sample_idx = torch.min(total_cost_samples, dim=-1)
+    
+    # Extract the final optimal sequence for each environment
+    best_sample_idx_t = best_sample_idx.view(n, 1, 1).expand(n, 1, horizon)
+    best_sample_idx_foot = best_sample_idx.view(n, 1, 1, 1).expand(n, 1, horizon, 3)
+    
+    plan_t = torch.gather(plan_t_samples, 1, best_sample_idx_t).squeeze(1)
+    plan_foot = torch.gather(plan_foot_samples, 1, best_sample_idx_foot).squeeze(1)
+    total_cost = best_sample_cost
+    
+    # Recalculate feasibility properties from the winning sequence
+    feasible_steps = torch.gather(feasible_steps_samples, 1, best_sample_idx.unsqueeze(-1)).squeeze(-1)
+    all_feasible = torch.gather(all_feasible_samples, 1, best_sample_idx.unsqueeze(-1)).squeeze(-1)
+
+    return plan_t, plan_foot, total_cost, all_feasible, feasible_steps
 
   def _plan_mpc_transition(self, env_ids: torch.Tensor) -> None:
     """Plan MPC preview and commit the first step in receding-horizon style."""
@@ -1316,6 +1319,17 @@ class HLIPCommandTerm(CommandTerm):
       # Switch stance when the swing foot has sustained force above the
       # threshold for the required grace period and minimum phase has elapsed.
       trans_ids = (eligible_mask & touchdown & touchdown_ready).nonzero(as_tuple=False).flatten()
+
+      # --- DEBUGGING MID SWING FLIPS ---
+      if len(trans_ids) > 0:
+          for i in trans_ids:
+              if phase_var[i] < 0.95:
+                  print(f"\n[DEBUG] EARLY TRANSITION TRIGGERED env={i.item()}")
+                  print(f"phase_var: {phase_var[i].item():.3f}")
+                  print(f"swing_contact_elapsed: {self._swing_contact_elapsed[i].item():.3f}")
+                  print(f"z_pos of swing foot: {self.robot.data.body_link_pos_w[i, self._foot_body_ids[self.swing_idx[i].item()], 2].item():.3f}")
+                  print(f"contact found tensor: {foot_contact[i]}")
+      # ---------------------------------
 
       self._prev_foot_contact = foot_contact.clone()
     else:
@@ -2654,7 +2668,7 @@ class HLIPCommandCfg(CommandTermCfg):
   touchdown_contact_grace_period_s: float = 0.10
   """Required continuous swing-foot contact duration [s] before switching stance."""
 
-  touchdown_min_force_n: float = 75.0
+  touchdown_min_force_n: float = 50.0
   """Minimum net contact force magnitude [N] for a foot to count as in contact.
 
   Toe-grazing contacts below this threshold will not accumulate toward the
