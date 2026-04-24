@@ -1,0 +1,159 @@
+# =============================================================================
+# deploy.yaml — CNNTransformerMDN distillation student policy
+#
+# Student observation layout (student_vec group, 96-d total):
+#   [0:3]   base_ang_vel          (imu angular velocity)
+#   [3:6]   projected_gravity
+#   [6:9]   velocity_commands     (vx, vy, 0) * scale 2.0  (linear-only; yaw masked to 0)
+#   [9:38]  joint_pos_rel         (29 joints, relative to default)
+#   [38:67] joint_vel_rel         (29 joints) * scale 0.05
+#   [67:96] last_action           (29 joints)
+#
+# Depth observation (head_camera_depth group):
+#   Shape [1, 24, 32] — received via DDS topic "rt/body_depth_camera"
+#   Preprocessed: clamped to [0.08, 2.0] m, identical to training pipeline.
+#
+# ONNX inputs:  student_vec [1,96]  |  head_camera_depth [1,1,24,32]
+# ONNX output:  actions     [1,29]  (MDN top-mode mean, deterministic)
+# =============================================================================
+
+joint_ids_map: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]
+step_dt: 0.02
+
+# ---------------------------------------------------------------------------
+# PD gains — updated per _apply_g1_joint_pd_gains() in env_cfgs.py
+#
+# G1-29dof joint ordering (0-indexed):
+#   0  left_hip_pitch       1  left_hip_yaw       2  left_hip_roll
+#   3  left_knee            4  left_ankle_pitch    5  left_ankle_roll
+#   6  right_hip_pitch      7  right_hip_yaw       8  right_hip_roll
+#   9  right_knee           10 right_ankle_pitch   11 right_ankle_roll
+#   12 waist_yaw            13 waist_pitch         14 waist_roll
+#   15 left_shoulder_pitch  16 left_shoulder_roll  17 left_shoulder_yaw
+#   18 left_elbow           19 left_wrist_roll     20 left_wrist_pitch
+#   21 left_wrist_yaw       22 right_shoulder_pitch 23 right_shoulder_roll
+#   24 right_shoulder_yaw   25 right_elbow         26 right_wrist_roll
+#   27 right_wrist_pitch    28 right_wrist_yaw
+#
+# Legs (0-11):   kp=100/100/100/150/40/40 × 2  (unchanged from base robot cfg)
+# Waist yaw (12):     kp=250, kd=5   (overridden)
+# Waist pitch/roll (13-14): kp=250, kd=5   (overridden)
+# Arms shoulders+elbows (15-18, 22-25): kp=80, kd=3   (overridden)
+# Wrist roll (19, 26):      kp=40, kd=1.5  (overridden)
+# Wrist pitch/yaw (20-21, 27-28): kp=40, kd=1.5  (overridden)
+# ---------------------------------------------------------------------------
+stiffness: [
+  100, 100, 100, 150,  40,  40,   # left leg (0-5)
+  100, 100, 100, 150,  40,  40,   # right leg (6-11)
+  250, 250, 250,                   # waist yaw / pitch / roll (12-14)
+   80,  80,  80,  80,  40,  40,  40,  # left arm: shoulder (3) + elbow + wrist (15-21)
+   80,  80,  80,  80,  40,  40,  40   # right arm (22-28)
+]
+damping: [
+   2,  2,  2,  4,  2,  2,         # left leg
+   2,  2,  2,  4,  2,  2,         # right leg
+   5,  5,  5,                      # waist
+   3,  3,  3,  3, 1.5, 1.5, 1.5,  # left arm
+   3,  3,  3,  3, 1.5, 1.5, 1.5   # right arm
+]
+
+default_joint_pos: [
+  -0.1, 0, 0, 0.3, -0.2, 0,
+  -0.1, 0, 0, 0.3, -0.2, 0,
+   0, 0, 0,
+   0.35,  0.18, 0, 0.87, 0, 0, 0,
+   0.35, -0.18, 0, 0.87, 0, 0, 0
+]
+
+# ---------------------------------------------------------------------------
+# Action — JointPositionAction (same scale as teacher policy)
+# ---------------------------------------------------------------------------
+actions:
+  JointPositionAction:
+    clip: null
+    joint_names: [.*]
+    scale: [
+      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,   # left leg
+      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,   # right leg
+      0.55, 0.44, 0.44,                       # waist
+      0.44, 0.44, 0.44, 0.44, 0.07, 0.07, 0.07,  # left arm
+      0.44, 0.44, 0.44, 0.44, 0.07, 0.07, 0.07   # right arm
+    ]
+    offset: [
+      -0.1, 0, 0, 0.3, -0.2, 0,
+      -0.1, 0, 0, 0.3, -0.2, 0,
+       0, 0, 0,
+       0.35,  0.18, 0, 0.87, 0, 0, 0,
+       0.35, -0.18, 0, 0.87, 0, 0, 0
+    ]
+    joint_ids: null
+
+# ---------------------------------------------------------------------------
+# Observations — two groups matching distillation student inputs
+# ---------------------------------------------------------------------------
+observations:
+  # ── 1. Vector group (student_vec, 96-d) ──────────────────────────────
+  student_vec:
+    base_ang_vel:
+      params: {}
+      clip: null
+      scale: [1.0, 1.0, 1.0]
+      history_length: 1
+    projected_gravity:
+      params: {}
+      clip: null
+      scale: [1.0, 1.0, 1.0]
+      history_length: 1
+    # velocity_commands: linear-only (yaw = 0), scaled ×2 as in training
+    velocity_commands:
+      params: {command_name: hlip_mdn}
+      clip: null
+      scale: [2.0, 2.0, 2.0]
+      history_length: 1
+    joint_pos_rel:
+      params: {}
+      clip: null
+      scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      history_length: 1
+    joint_vel_rel:
+      params: {}
+      clip: null
+      scale: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+              0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+              0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+      history_length: 1
+    last_action:
+      params: {}
+      clip: null
+      scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+              1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      history_length: 1
+
+  # ── 2. Depth image group (head_camera_depth) ─────────────────────────
+  # Received via DDS "rt/body_depth_camera" (32×24 float32 row-major, metres).
+  # Preprocessed to [0.08, 2.0] m and reshaped to [1,24,32] before inference.
+  head_camera_depth:
+    depth_image:
+      params:
+        dds_topic: rt/body_depth_camera
+        width: 32
+        height: 24
+        min_depth: 0.1
+        max_depth: 10.0
+      clip: [0.0, 10.0]
+      scale: [1.0]
+      history_length: 0
+
+# ---------------------------------------------------------------------------
+# Velocity command source (joystick / keyboard, passed to student as [vx,vy,0])
+# ---------------------------------------------------------------------------
+commands:
+  hlip_mdn:
+    ranges:
+      lin_vel_x: [-0.6, 0.6]
+      lin_vel_y: [-0.2, 0.2]
+      ang_vel_z: [0.0, 0.0]    # yaw masked to 0 for distillation student
+      heading: null

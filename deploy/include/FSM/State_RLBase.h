@@ -23,16 +23,6 @@ public:
             lowcmd->msg_.motor_cmd()[i].tau() = 0;
         }
 
-        // Set locked joint targets to default positions (for partial-control policies)
-        if(env->cfg["locked_joints"].IsDefined()) {
-            auto locked_ids = env->cfg["locked_joints"]["joint_ids"].as<std::vector<int>>();
-            auto locked_targets = env->cfg["locked_joints"]["targets"].as<std::vector<float>>();
-            for(size_t i = 0; i < locked_ids.size() && i < locked_targets.size(); i++) {
-                int motor_id = (int)env->robot->data.joint_ids_map[locked_ids[i]];
-                lowcmd->msg_.motor_cmd()[motor_id].q() = locked_targets[i];
-            }
-        }
-
         env->robot->update();
         // Start policy thread
         policy_thread_running = true;

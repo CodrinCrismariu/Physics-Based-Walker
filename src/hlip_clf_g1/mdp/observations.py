@@ -297,8 +297,8 @@ def depth_camera_chw_data(
 def depth_camera_sparse_terrain_chw_data(
   env: ManagerBasedRlEnv,
   sensor_name: str = "head_camera",
-  min_depth: float = 0.08,
-  max_depth: float = 2.0,
+  min_depth: float = 0.1,
+  max_depth: float = 10.0,
   depth_noise_scale: float = 0.1,
 ) -> torch.Tensor:
   """Depth preprocessing with depth-proportional multiplicative noise.

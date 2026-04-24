@@ -480,7 +480,7 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
         "sensor_name": "head_camera",
         "depth_noise_scale": 0.1,
       },
-      clip=(0.0, 2.0),
+      clip=(0.0, 10.0),
     ),
   }
 

@@ -17,7 +17,7 @@ actions:
   JointPositionAction:
     clip: null
     joint_names: [.*]
-    scale: [0.55, 0.35, 0.55, 0.35, 0.44, 0.44, 0.55, 0.35, 0.55, 0.35, 0.44, 0.44, 0.35, 0.44, 0.44,
+    scale: [0.55, 0.35, 0.55, 0.35, 0.44, 0.44, 0.55, 0.35, 0.55, 0.35, 0.44, 0.44, 0.55, 0.44, 0.44,
             0.44, 0.44, 0.44, 0.44, 0.44, 0.07, 0.07, 0.44, 0.44, 0.44, 0.44, 0.44, 0.07, 0.07]
     offset: [-0.1,0,0,0.3,-0.2,0, -0.1,0,0,0.3,-0.2,0,  0,0,0,  0.35,0.18,0,0.87,0,0,0, 0.35,-0.18,0,0.87,0,0,0]
     joint_ids: null
@@ -33,9 +33,14 @@ observations:
     scale: [1.0, 1.0, 1.0]
     history_length: 1
   velocity_commands:
-    params: { command_name: base_velocity }
+    params: {command_name: base_velocity}
     clip: null
-    scale: [ 1.0, 1.0, 1.0 ]
+    scale: [1.0, 1.0, 1.0]
+    history_length: 1
+  gait_phase:
+    params: {period: 0.6}
+    clip: null
+    scale: [1.0, 1.0]
     history_length: 1
   joint_pos_rel:
     params: {}

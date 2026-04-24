@@ -227,6 +227,30 @@ main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_ctrl.dir/build.make CMakeFiles/g1_ctrl.dir/main.cpp.s
 .PHONY : main.cpp.s
 
+src/State_HLIPMdn.o: src/State_HLIPMdn.cpp.o
+.PHONY : src/State_HLIPMdn.o
+
+# target to build an object file
+src/State_HLIPMdn.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_controller_lib.dir/build.make CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o
+.PHONY : src/State_HLIPMdn.cpp.o
+
+src/State_HLIPMdn.i: src/State_HLIPMdn.cpp.i
+.PHONY : src/State_HLIPMdn.i
+
+# target to preprocess a source file
+src/State_HLIPMdn.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_controller_lib.dir/build.make CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.i
+.PHONY : src/State_HLIPMdn.cpp.i
+
+src/State_HLIPMdn.s: src/State_HLIPMdn.cpp.s
+.PHONY : src/State_HLIPMdn.s
+
+# target to generate assembly for a file
+src/State_HLIPMdn.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_controller_lib.dir/build.make CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.s
+.PHONY : src/State_HLIPMdn.cpp.s
+
 src/State_Mimic.o: src/State_Mimic.cpp.o
 .PHONY : src/State_Mimic.o
 
@@ -295,6 +319,9 @@ help:
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"
+	@echo "... src/State_HLIPMdn.o"
+	@echo "... src/State_HLIPMdn.i"
+	@echo "... src/State_HLIPMdn.s"
 	@echo "... src/State_Mimic.o"
 	@echo "... src/State_Mimic.i"
 	@echo "... src/State_Mimic.s"

@@ -69,10 +69,24 @@ include CMakeFiles/g1_controller_lib.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/g1_controller_lib.dir/flags.make
 
+CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o: CMakeFiles/g1_controller_lib.dir/flags.make
+CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o: /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_HLIPMdn.cpp
+CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o: CMakeFiles/g1_controller_lib.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o -MF CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o.d -o CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o -c /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_HLIPMdn.cpp
+
+CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_HLIPMdn.cpp > CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.i
+
+CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_HLIPMdn.cpp -o CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.s
+
 CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o: CMakeFiles/g1_controller_lib.dir/flags.make
 CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o: /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_Mimic.cpp
 CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o: CMakeFiles/g1_controller_lib.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o -MF CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o.d -o CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o -c /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_Mimic.cpp
 
 CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.i: cmake_force
@@ -86,7 +100,7 @@ CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.s: cmake_force
 CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o: CMakeFiles/g1_controller_lib.dir/flags.make
 CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o: /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_RLBase.cpp
 CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o: CMakeFiles/g1_controller_lib.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o -MF CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o.d -o CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o -c /home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/src/State_RLBase.cpp
 
 CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.i: cmake_force
@@ -99,17 +113,19 @@ CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.s: cmake_force
 
 # Object files for target g1_controller_lib
 g1_controller_lib_OBJECTS = \
+"CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o" \
 "CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o" \
 "CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o"
 
 # External object files for target g1_controller_lib
 g1_controller_lib_EXTERNAL_OBJECTS =
 
+libg1_controller_lib.a: CMakeFiles/g1_controller_lib.dir/src/State_HLIPMdn.cpp.o
 libg1_controller_lib.a: CMakeFiles/g1_controller_lib.dir/src/State_Mimic.cpp.o
 libg1_controller_lib.a: CMakeFiles/g1_controller_lib.dir/src/State_RLBase.cpp.o
 libg1_controller_lib.a: CMakeFiles/g1_controller_lib.dir/build.make
 libg1_controller_lib.a: CMakeFiles/g1_controller_lib.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX static library libg1_controller_lib.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Linking CXX static library libg1_controller_lib.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/g1_controller_lib.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/g1_controller_lib.dir/link.txt --verbose=$(VERBOSE)
 

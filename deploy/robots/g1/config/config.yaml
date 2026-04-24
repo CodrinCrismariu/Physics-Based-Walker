@@ -7,9 +7,9 @@ FSM:
     Velocity:
       id: 3
       type: RLBase
-    HLIP:
+    HLIPMdn:
       id: 4
-      type: RLBase
+      type: HLIPMdn
 
     Mimic_Dance1_subject2:
       id: 5
@@ -39,7 +39,7 @@ FSM:
     transitions: 
       Passive: LT + B.on_pressed
       Velocity: RT + A.on_pressed
-      HLIP: RT + Y.on_pressed
+      HLIPMdn: RT + B.on_pressed
 
     kp: [
       100,100,100,150,40,40,
@@ -71,15 +71,19 @@ FSM:
     transitions: 
       Passive: LT + B.on_pressed
       Mimic_Dance1_subject2: RB + A.on_pressed
+      HLIPMdn: RT + B.on_pressed
 
     policy_dir: config/policy/velocity
 
 
-  HLIP:
+  HLIPMdn:
     transitions:
       Passive: LT + B.on_pressed
+      FixStand: LT + A.on_pressed
 
-    policy_dir: config/policy/hlip
+    # MDN distillation student policy (CNNTransformerMDN).
+    # Uses external depth camera on DDS topic "rt/body_depth_camera".
+    policy_dir: config/policy/hlip_mdn/v0
 
 
   Mimic_Dance1_subject2:

@@ -120,9 +120,22 @@ def _make_head_camera_sensor() -> CameraSensorCfg:
     data_types=("rgb", "depth"),
   )
 
+def _make_alternative_head_camera_sensor() -> CameraSensorCfg:
+  return CameraSensorCfg(
+    name="head_camera",
+    parent_body="robot/torso_link",
+    pos=(0.15, 0.0, 0.3),#(0.06, 0.0, 0.45),
+    quat=(0, -0.1986693, 0, 0.9800666),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
+    width=HEAD_CAMERA_WIDTH,
+    height=HEAD_CAMERA_HEIGHT,
+    fovy=55.2,
+    data_types=("rgb", "depth"),
+  )
+
+
 
 def _add_head_camera_sensor(cfg: ManagerBasedRlEnvCfg) -> None:
-  head_camera = _make_head_camera_sensor()
+  head_camera = _make_alternative_head_camera_sensor()
   cfg.scene.sensors = (*cfg.scene.sensors, head_camera)
 
 
