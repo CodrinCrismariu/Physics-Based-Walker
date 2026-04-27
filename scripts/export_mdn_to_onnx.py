@@ -117,8 +117,17 @@ def _build_student_model(device: torch.device):
     return model.to(device).eval()
 
 
-class _TracableStudent(torch.nn.Module):
-    """Thin wrapper so torch.onnx.export receives plain tensors (not TensorDict)."""
+class _DirectWrapper(torch.nn.Module):
+    """Thin wrapper that calls CNNTransformerMDN internals with plain tensors.
+
+    Bypasses TensorDict entirely so torch.jit.trace/torch.onnx.export
+    don't get stuck on TensorDict's custom C++ dispatch hooks.
+
+    Assumes:
+      obs_groups  = {"student": ["student_vec", "head_camera_depth"]}
+      obs_groups_1d  contains only "student_vec"
+      obs_groups_2d  contains only "head_camera_depth"
+    """
 
     def __init__(self, student):
         super().__init__()
@@ -126,21 +135,33 @@ class _TracableStudent(torch.nn.Module):
 
     def forward(
         self,
-        student_vec: torch.Tensor,
-        head_camera_depth: torch.Tensor,
+        student_vec: torch.Tensor,      # [B, VEC_DIM]
+        head_camera_depth: torch.Tensor, # [B, C, H, W]
     ) -> torch.Tensor:
-        from tensordict import TensorDict
+        s = self.student
 
-        obs = TensorDict(
-            {
-                "student_vec": student_vec,
-                "head_camera_depth": head_camera_depth,
-            },
-            batch_size=[student_vec.shape[0]],
-            device=student_vec.device,
-        )
-        # stochastic_output=False → deterministic (top-mode mean) action
-        return self.student(obs, stochastic_output=False)
+        # ── 1. Vector token ─────────────────────────────────────────────────
+        # obs_normalizer is applied to the raw concatenated 1-D observations.
+        latent_1d = s.obs_normalizer(student_vec)
+        vec_token  = s.vector_token_projection(latent_1d)   # [B, d_model]
+
+        # ── 2. CNN token ─────────────────────────────────────────────────────
+        cnn_key   = s.obs_groups_2d[0]                      # "head_camera_depth"
+        cnn_feat  = s.cnns[cnn_key](head_camera_depth)      # [B, cnn_out]
+        img_token = s.cnn_token_projections[cnn_key](cnn_feat)  # [B, d_model]
+
+        # ── 3. Transformer ───────────────────────────────────────────────────
+        # token order must match training: [vec_token, img_token]
+        token_tensor = torch.stack([vec_token, img_token], dim=1)  # [B, 2, d_model]
+        if s.positional_embedding is not None:
+            token_tensor = token_tensor + s.positional_embedding
+        encoded = s.transformer(token_tensor)                      # [B, 2, d_model]
+        pooled  = s.transformer_norm(encoded.mean(dim=1))          # [B, d_model]
+
+        # ── 4. MDN head ──────────────────────────────────────────────────────
+        raw_params   = s.mlp(pooled)
+        logits, means, _ = s._split_mdn_params(raw_params)
+        return s._deterministic_action(logits, means)              # [B, ACTION_DIM]
 
 
 def export(checkpoint: Path, out: Path) -> None:
@@ -167,34 +188,39 @@ def export(checkpoint: Path, out: Path) -> None:
     # Switch BatchNorm layers to eval mode (important for ONNX trace)
     student.eval()
 
-    wrapper = _TracableStudent(student).eval()
+    wrapper = _DirectWrapper(student).eval()
 
     dummy_vec   = torch.zeros(1, VEC_DIM,    device=device)
     dummy_depth = torch.zeros(1, CAM_CHANNELS, CAM_HEIGHT, CAM_WIDTH, device=device)
 
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"[export] Exporting ONNX → {out}")
+    print(f"[export] Tracing model...")
     with torch.no_grad():
         traced = torch.jit.trace(wrapper, (dummy_vec, dummy_depth), strict=False)
 
+    print(f"[export] Exporting ONNX → {out}")
+    # Use dynamic_axes so the ONNX graph records batch=-1.
+    # OrtRunner now handles -1 dims correctly (substitutes 1 at runtime).
     torch.onnx.export(
         traced,
         (dummy_vec, dummy_depth),
         str(out),
         input_names=["student_vec", "head_camera_depth"],
         output_names=["actions"],
-        opset_version=18,          # ORT 1.22 supports opset 18; avoids downconversion
+        opset_version=18,
         do_constant_folding=True,
         dynamic_axes={
-            "student_vec":        {0: "batch"},
-            "head_camera_depth":  {0: "batch"},
-            "actions":            {0: "batch"},
+            "student_vec":       {0: "batch"},
+            "head_camera_depth": {0: "batch"},
+            "actions":           {0: "batch"},
         },
     )
 
     print("[export] Done.")
     _verify(out, dummy_vec, dummy_depth)
+
+
 
 
 def _verify(onnx_path: Path, dummy_vec, dummy_depth) -> None:

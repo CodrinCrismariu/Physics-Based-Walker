@@ -37,8 +37,8 @@ class UprightWaistActionCfg(ActionTermCfg):
   pitch_joint_names: tuple[str, ...] | list[str] = ("waist_pitch_joint",)
   roll_joint_names: tuple[str, ...] | list[str] = ("waist_roll_joint",)
 
-  action_scale_pitch: float = 0.35
-  action_scale_roll: float = 0.35
+  action_scale_pitch: float = 0.0
+  action_scale_roll: float = 0.0
   """Scale from source raw action to waist target offset [rad]."""
 
   pitch_offset: float = 0.0
@@ -136,13 +136,11 @@ class UprightWaistAction(ActionTerm):
     pitch_target = (
       self._default_pitch
       + self.cfg.pitch_offset
-      + self.cfg.action_scale_pitch * a_pitch
       - self.cfg.upright_pitch_gain * pitch
     )
     roll_target = (
       self._default_roll
       + self.cfg.roll_offset
-      + self.cfg.action_scale_roll * a_roll
       - self.cfg.upright_roll_gain * roll
     )
 

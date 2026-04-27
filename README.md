@@ -22,5 +22,4 @@ uv run custom_train Mjlab-HLIP-CLF-Distillation-Stairs-Unitree-G1 \
   --agent.load-run logs/rsl_rl/g1_hlip_clf/2026-03-16_20-12-12/ \
   --student-load-run logs/rsl_rl/g1_hlip_clf_distillation/2026-03-17_11-04-00/model_200.pt \
   --env.scene.num-envs 4096
-  
-updated xml from: https://huggingface.co/lerobot/unitree-g1-mujoco/blob/main/assets/g1_29dof_no_hand.xml
+

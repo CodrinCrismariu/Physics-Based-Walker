@@ -44,13 +44,9 @@ public:
             input_names.push_back(input_name.release());
         }
 
-        for (const auto& shape : input_shapes) {
-            size_t size = 1;
-            for (const auto& dim : shape) {
-                size *= dim;
-            }
-            input_sizes.push_back(size);
-        }
+        // input_sizes is no longer used for tensor creation (see act());
+        // we keep it for backwards compatibility but don't compute it from
+        // model metadata because dynamic axes appear as -1.
 
         // Get output shape
         Ort::TypeInfo output_type = session->GetOutputTypeInfo(0);
@@ -72,13 +68,27 @@ public:
             }
         }
 
-        // Create input tensors
+        // Create input tensors.
+        // Use input_data.size() as the element count (not model-metadata
+        // input_sizes) because dynamic axes are stored as -1 in the ONNX
+        // graph and would make the product negative, crashing ORT.
+        // Replace any -1 dims with 1 (batch=1 at inference).
         std::vector<Ort::Value> input_tensors;
-        for(int i(0); i<input_names.size(); ++i)
+        for(int i(0); i<(int)input_names.size(); ++i)
         {
             const std::string name_str(input_names[i]);
             auto& input_data = obs.at(name_str);
-            auto input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_data.data(), input_sizes[i], input_shapes[i].data(), input_shapes[i].size());
+
+            // Build concrete shape: substitute -1 → 1
+            std::vector<int64_t> concrete_shape = input_shapes[i];
+            for (auto& d : concrete_shape) if (d < 0) d = 1;
+
+            auto input_tensor = Ort::Value::CreateTensor<float>(
+                memory_info,
+                input_data.data(),
+                input_data.size(),      // actual element count, always positive
+                concrete_shape.data(),
+                concrete_shape.size());
             input_tensors.push_back(std::move(input_tensor));
         }
 

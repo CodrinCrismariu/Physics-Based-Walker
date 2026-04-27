@@ -101,7 +101,7 @@ def _make_distillation_mdn_algorithm_cfg() -> RslRlDistillationAlgorithmCfg:
   return RslRlDistillationAlgorithmCfg(
     class_name="hlip_clf_g1.rl.distillation_algorithm:DistillationMDN",
     num_learning_epochs=10,
-    learning_rate=5 * 1.0e-4,
+    learning_rate=2.0e-3,
     gradient_length=2,
     max_grad_norm=2.0,
     optimizer="adam",

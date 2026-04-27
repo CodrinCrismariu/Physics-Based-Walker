@@ -49,3 +49,16 @@ add_library(${PROJECT_NAME}_lib ${ADD_SRC_LIST})
 link_libraries(${PROJECT_NAME}_lib)
 
 add_executable(g1_ctrl main.cpp)
+
+# ── Depth subscriber diagnostic tool ─────────────────────────────────────────
+# Standalone binary: subscribes to rt/body_depth_camera and prints per-frame
+# stats + ASCII visualisation.  Links only DDS libs (no ONNX / controller lib).
+add_executable(depth_test depth_test.cpp)
+target_link_libraries(depth_test
+    unitree_sdk2
+    ddsc
+    ddscxx
+    rt
+    pthread
+    fmt
+)

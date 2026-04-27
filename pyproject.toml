@@ -8,7 +8,7 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "mjlab>=1.1.0",
+    "mjlab==1.1.1",
     "scipy",
 ]
 
@@ -25,3 +25,8 @@ build-backend = "uv_build"
 
 [tool.uv.sources]
 mjlab = { git = "https://github.com/mujocolab/mjlab" }
+
+[tool.uv]
+override-dependencies = [
+    "mujoco==3.7.0",
+]

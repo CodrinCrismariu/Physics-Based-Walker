@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS configuration for the G1 depth subscriber.
+
+  TypeConsistencyEnforcement is set to ALLOW_TYPE_COERCION so that the C++
+  subscriber can receive data from the Python unitree_sdk2py ChannelPublisher
+  without requiring a matching XTypes type hash.  All other settings mirror
+  the Unitree SDK defaults (domain 0, best-effort, all interfaces).
+
+  Usage: set CYCLONEDDS_URI=file:///path/to/this/file before launching g1_ctrl
+         OR pass the path to ChannelFactory::Instance()->Init(configFile).
+-->
+<CycloneDDS>
+  <Domain id="any">
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+    </Discovery>
+    <Compatibility>
+      <!-- Allow receiving from publishers whose XTypes type hash differs.
+           This is needed when the C++ type descriptor is hand-crafted and
+           does not exactly match the Python cyclonedds IDL-generated hash. -->
+      <TypeConsistencyEnforcement>
+        <Kind>ALLOW_TYPE_COERCION</Kind>
+        <IgnoreSequenceBounds>true</IgnoreSequenceBounds>
+        <IgnoreStringBounds>true</IgnoreStringBounds>
+        <IgnoreMemberNames>true</IgnoreMemberNames>
+        <PreventTypeWidening>false</PreventTypeWidening>
+        <ForceTypeValidation>false</ForceTypeValidation>
+      </TypeConsistencyEnforcement>
+    </Compatibility>
+  </Domain>
+</CycloneDDS>

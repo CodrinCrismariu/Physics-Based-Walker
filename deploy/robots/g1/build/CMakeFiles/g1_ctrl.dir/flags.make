@@ -6,5 +6,5 @@ CXX_DEFINES = -DBOOST_PROGRAM_OPTIONS_DYN_LINK -DBOOST_PROGRAM_OPTIONS_NO_LIB
 
 CXX_INCLUDES = -I/usr/include/eigen3 -I/usr/local/include/ddscxx -I/usr/local/include/iceoryx/v2.0.2 -I/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/include -I/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/../../thirdparty/onnxruntime-linux-x64-1.22.0/include -I/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/../../include -I/home/codrincrismariu/Documents/Physics-Based-Walker/deploy/robots/g1/../../thirdparty/cnpy
 
-CXX_FLAGS = -std=gnu++17
+CXX_FLAGS = -O3 -DNDEBUG -std=gnu++17
 

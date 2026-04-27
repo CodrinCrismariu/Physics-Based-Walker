@@ -399,6 +399,16 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
         "foot_body_name": r".*_ankle_roll_link",
       },
     ),
+    "mpc_fallback_used": TerminationTermCfg(
+      func=mdp.mpc_fallback_used,
+      params={
+        "command_name": "hlip",
+        # Grace period: do not terminate in the first second of an episode so
+        # the robot has time to establish a valid gait before the MPC has a
+        # fully-populated heightmap and can plan proper footholds.
+        "min_episode_time_s": 1.0,
+      },
+    ),
   }
 
   ##

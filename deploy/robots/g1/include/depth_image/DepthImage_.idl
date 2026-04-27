@@ -1,0 +1,12 @@
+// Matches Python cyclonedds definition in depth_image_msg.py exactly:
+//   timestamp_us : int              -> long long (int64)
+//   width        : int              -> long long (int64, Python int default)
+//   height       : int              -> long long (int64, Python int default)
+//   depth_data   : sequence[float32] -> unbounded sequence of float32
+@final
+struct DepthImage_ {
+    long long timestamp_us;
+    long long width;
+    long long height;
+    sequence<float> depth_data;
+};

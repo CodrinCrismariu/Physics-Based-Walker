@@ -93,9 +93,9 @@ int main(int argc, char** argv)
 
     std::cout << "Controls:\n";
     std::cout << "  L2 + Up      → FixStand\n";
-    std::cout << "  RT + B       → HLIPMdn (MDN distillation policy)\n";
-    std::cout << "  RT + A       → Velocity (baseline policy)\n";
-    std::cout << "  LT + B       → Passive  (safe stop, damped)\n";
+    std::cout << "  R2 + B       → HLIPMdn (MDN distillation policy)\n";
+    std::cout << "  R2 + A       → Velocity (baseline policy)\n";
+    std::cout << "  L2 + B       → Passive  (safe stop, damped)\n";
     std::cout << "  Ctrl+C       → Emergency stop and exit\n";
 
     while (!g_shutdown)

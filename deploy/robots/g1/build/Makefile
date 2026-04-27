@@ -155,6 +155,43 @@ g1_ctrl/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_ctrl.dir/build.make CMakeFiles/g1_ctrl.dir/build
 .PHONY : g1_ctrl/fast
 
+#=============================================================================
+# Target rules for targets named depth_test
+
+# Build rule for target.
+depth_test: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 depth_test
+.PHONY : depth_test
+
+# fast build rule for target.
+depth_test/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/depth_test.dir/build.make CMakeFiles/depth_test.dir/build
+.PHONY : depth_test/fast
+
+depth_test.o: depth_test.cpp.o
+.PHONY : depth_test.o
+
+# target to build an object file
+depth_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/depth_test.dir/build.make CMakeFiles/depth_test.dir/depth_test.cpp.o
+.PHONY : depth_test.cpp.o
+
+depth_test.i: depth_test.cpp.i
+.PHONY : depth_test.i
+
+# target to preprocess a source file
+depth_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/depth_test.dir/build.make CMakeFiles/depth_test.dir/depth_test.cpp.i
+.PHONY : depth_test.cpp.i
+
+depth_test.s: depth_test.cpp.s
+.PHONY : depth_test.s
+
+# target to generate assembly for a file
+depth_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/depth_test.dir/build.make CMakeFiles/depth_test.dir/depth_test.cpp.s
+.PHONY : depth_test.cpp.s
+
 home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.o: home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.cpp.o
 .PHONY : home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.o
 
@@ -308,8 +345,12 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... cnpy_lib"
+	@echo "... depth_test"
 	@echo "... g1_controller_lib"
 	@echo "... g1_ctrl"
+	@echo "... depth_test.o"
+	@echo "... depth_test.i"
+	@echo "... depth_test.s"
 	@echo "... home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.o"
 	@echo "... home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.i"
 	@echo "... home/codrincrismariu/Documents/Physics-Based-Walker/deploy/thirdparty/cnpy/cnpy.s"

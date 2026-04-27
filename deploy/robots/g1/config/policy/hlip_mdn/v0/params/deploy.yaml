@@ -2,16 +2,21 @@
 # deploy.yaml — CNNTransformerMDN distillation student policy
 #
 # Student observation layout (student_vec group, 96-d total):
-#   [0:3]   base_ang_vel          (imu angular velocity)
-#   [3:6]   projected_gravity
-#   [6:9]   velocity_commands     (vx, vy, 0) * scale 2.0  (linear-only; yaw masked to 0)
-#   [9:38]  joint_pos_rel         (29 joints, relative to default)
-#   [38:67] joint_vel_rel         (29 joints) * scale 0.05
-#   [67:96] last_action           (29 joints)
+#   [0:3]   base_ang_vel          (imu angular velocity, scale 1.0)
+#   [3:6]   projected_gravity     (scale 1.0)
+#   [6:9]   velocity_commands     (vx, vy, yaw_rate) * scale 2.0  [FULL 3D cmd]
+#   [9:38]  joint_pos             (29 joints, relative to default, scale 1.0)
+#   [38:67] joint_vel             (29 joints, scale 0.05)
+#   [67:96] last_action           (29 joints, UNSCALED policy output, scale 1.0)
+#
+# Action: JointPositionActionCfg with G1_ACTION_SCALE (per-joint) + default offset.
+#   target = default_joint_pos + scale[i] * action[i]
+#   Upper body (waist, arms) scale=0 → stays at default.
+#   Waist pitch/roll additionally receive IMU upright compensation.
 #
 # Depth observation (head_camera_depth group):
 #   Shape [1, 24, 32] — received via DDS topic "rt/body_depth_camera"
-#   Preprocessed: clamped to [0.08, 2.0] m, identical to training pipeline.
+#   Preprocessed: clamped to [0.1, 10.0] m.
 #
 # ONNX inputs:  student_vec [1,96]  |  head_camera_depth [1,1,24,32]
 # ONNX output:  actions     [1,29]  (MDN top-mode mean, deterministic)
@@ -21,70 +26,78 @@ joint_ids_map: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
 step_dt: 0.02
 
 # ---------------------------------------------------------------------------
-# PD gains — updated per _apply_g1_joint_pd_gains() in env_cfgs.py
+# PD gains — must follow MJCF joint order (NOT Unitree SDK marketing order!).
 #
-# G1-29dof joint ordering (0-indexed):
-#   0  left_hip_pitch       1  left_hip_yaw       2  left_hip_roll
+# Actual MJCF joint order from g1.xml:
+#   0  left_hip_pitch       1  left_hip_roll       2  left_hip_yaw
 #   3  left_knee            4  left_ankle_pitch    5  left_ankle_roll
-#   6  right_hip_pitch      7  right_hip_yaw       8  right_hip_roll
+#   6  right_hip_pitch      7  right_hip_roll      8  right_hip_yaw
 #   9  right_knee           10 right_ankle_pitch   11 right_ankle_roll
-#   12 waist_yaw            13 waist_pitch         14 waist_roll
+#   12 waist_yaw            13 waist_roll          14 waist_pitch
 #   15 left_shoulder_pitch  16 left_shoulder_roll  17 left_shoulder_yaw
 #   18 left_elbow           19 left_wrist_roll     20 left_wrist_pitch
 #   21 left_wrist_yaw       22 right_shoulder_pitch 23 right_shoulder_roll
 #   24 right_shoulder_yaw   25 right_elbow         26 right_wrist_roll
 #   27 right_wrist_pitch    28 right_wrist_yaw
 #
-# Legs (0-11):   kp=100/100/100/150/40/40 × 2  (unchanged from base robot cfg)
-# Waist yaw (12):     kp=250, kd=5   (overridden)
-# Waist pitch/roll (13-14): kp=250, kd=5   (overridden)
-# Arms shoulders+elbows (15-18, 22-25): kp=80, kd=3   (overridden)
-# Wrist roll (19, 26):      kp=40, kd=1.5  (overridden)
-# Wrist pitch/yaw (20-21, 27-28): kp=40, kd=1.5  (overridden)
+# PD gains from g1_constants.py + _apply_g1_joint_pd_gains().
+# Values taken from the working velocity deploy (same robot config).
 # ---------------------------------------------------------------------------
 stiffness: [
-  100, 100, 100, 150,  40,  40,   # left leg (0-5)
-  100, 100, 100, 150,  40,  40,   # right leg (6-11)
-  250, 250, 250,                   # waist yaw / pitch / roll (12-14)
-   80,  80,  80,  80,  40,  40,  40,  # left arm: shoulder (3) + elbow + wrist (15-21)
-   80,  80,  80,  80,  40,  40,  40   # right arm (22-28)
+  40.2, 99.1, 40.2, 99.1, 28.5, 28.5,      # left leg  (hp, hr, hy, kn, ap, ar)
+  40.2, 99.1, 40.2, 99.1, 28.5, 28.5,      # right leg
+  250.0, 250.0, 250.0,                       # waist (yaw, roll, pitch)
+   80.0,  80.0,  80.0,  80.0,  40.0,  40.0,  40.0,  # left arm
+   80.0,  80.0,  80.0,  80.0,  40.0,  40.0,  40.0   # right arm
 ]
 damping: [
-   2,  2,  2,  4,  2,  2,         # left leg
-   2,  2,  2,  4,  2,  2,         # right leg
-   5,  5,  5,                      # waist
-   3,  3,  3,  3, 1.5, 1.5, 1.5,  # left arm
-   3,  3,  3,  3, 1.5, 1.5, 1.5   # right arm
+  2.6, 6.3, 2.6, 6.3, 1.8, 1.8,             # left leg
+  2.6, 6.3, 2.6, 6.3, 1.8, 1.8,             # right leg
+  5.0, 5.0, 5.0,                              # waist
+  3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5,        # left arm
+  3.0, 3.0, 3.0, 3.0, 1.5, 1.5, 1.5         # right arm
 ]
 
+# default_joint_pos — from KNEES_BENT_KEYFRAME (EntityCfg.init_state.joint_pos)
+# In MJCF order: hip_pitch, hip_roll, hip_yaw, knee, ankle_pitch, ankle_roll
 default_joint_pos: [
-  -0.1, 0, 0, 0.3, -0.2, 0,
-  -0.1, 0, 0, 0.3, -0.2, 0,
-   0, 0, 0,
-   0.35,  0.18, 0, 0.87, 0, 0, 0,
-   0.35, -0.18, 0, 0.87, 0, 0, 0
+  -0.312, 0.0,   0.0,  0.669, -0.363, 0.0,   # left leg:  hp hr hy kn ap ar
+  -0.312, 0.0,   0.0,  0.669, -0.363, 0.0,   # right leg
+   0.0,   0.0,   0.0,                          # waist (yaw, roll, pitch)
+   0.2,   0.2,   0.0,  0.6,   0.0,   0.0,  0.0,   # left arm
+   0.2,  -0.2,   0.0,  0.6,   0.0,   0.0,  0.0    # right arm
 ]
 
 # ---------------------------------------------------------------------------
-# Action — JointPositionAction (same scale as teacher policy)
+# Action — JointPositionAction
+#
+# Only the 12 lower-body joints (hips, knees, ankles) are policy-controlled.
+# Upper-body joints (waist yaw/pitch/roll, arms, wrists — indices 12-28) are
+# frozen at their default positions via scale=0.  Waist pitch/roll get an
+# additional IMU-feedback upright correction applied in State_HLIPMdn.cpp.
 # ---------------------------------------------------------------------------
 actions:
   JointPositionAction:
     clip: null
     joint_names: [.*]
+    # G1_ACTION_SCALE = 0.25 * effort / stiffness, per-joint.
+    # Same values as working velocity deploy. Upper body zeroed.
+    # MJCF order: hip_pitch, hip_roll, hip_yaw, knee, ankle_pitch, ankle_roll
     scale: [
-      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,   # left leg
-      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,   # right leg
-      0.55, 0.44, 0.44,                       # waist
-      0.44, 0.44, 0.44, 0.44, 0.07, 0.07, 0.07,  # left arm
-      0.44, 0.44, 0.44, 0.44, 0.07, 0.07, 0.07   # right arm
+      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,     # left leg  (hp, hr, hy, kn, ap, ar)
+      0.55, 0.35, 0.55, 0.35, 0.44, 0.44,     # right leg
+      0.0,  0.0,  0.0,                          # waist (frozen)
+      0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  # left arm (frozen)
+      0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0   # right arm (frozen)
     ]
+    # Action offset = default_joint_pos (JointPositionActionCfg use_default_offset=True)
+    # target = default_joint_pos + scale * raw_action
     offset: [
-      -0.1, 0, 0, 0.3, -0.2, 0,
-      -0.1, 0, 0, 0.3, -0.2, 0,
-       0, 0, 0,
-       0.35,  0.18, 0, 0.87, 0, 0, 0,
-       0.35, -0.18, 0, 0.87, 0, 0, 0
+      -0.312, 0.0,  0.0,  0.669, -0.363, 0.0,    # left leg
+      -0.312, 0.0,  0.0,  0.669, -0.363, 0.0,    # right leg
+       0.0,   0.0,  0.0,                           # waist
+       0.2,   0.2,  0.0,  0.6,   0.0,  0.0,  0.0,  # left arm
+       0.2,  -0.2,  0.0,  0.6,   0.0,  0.0,  0.0   # right arm
     ]
     joint_ids: null
 
@@ -104,10 +117,11 @@ observations:
       clip: null
       scale: [1.0, 1.0, 1.0]
       history_length: 1
-    # velocity_commands: linear-only (yaw = 0), scaled ×2 as in training
     velocity_commands:
-      params: {command_name: hlip_mdn}
+      params: {}
       clip: null
+      # Full 3D command [vx, vy, yaw_rate] * 2.0 — matches training:
+      # ObservationTermCfg(func=mdp.hlip_velocity_command, scale=(2.0,2.0,2.0))
       scale: [2.0, 2.0, 2.0]
       history_length: 1
     joint_pos_rel:
@@ -134,7 +148,7 @@ observations:
 
   # ── 2. Depth image group (head_camera_depth) ─────────────────────────
   # Received via DDS "rt/body_depth_camera" (32×24 float32 row-major, metres).
-  # Preprocessed to [0.08, 2.0] m and reshaped to [1,24,32] before inference.
+  # Preprocessed to [0.1, 10.0] m and reshaped to [1,24,32] before inference.
   head_camera_depth:
     depth_image:
       params:
@@ -147,13 +161,13 @@ observations:
       scale: [1.0]
       history_length: 0
 
-# ---------------------------------------------------------------------------
-# Velocity command source (joystick / keyboard, passed to student as [vx,vy,0])
-# ---------------------------------------------------------------------------
+# Velocity command source (joystick/keyboard, passed to student as [vx, vy, 0])
+# Key must be "base_velocity" — matched by the C++ velocity_commands observation.
+# ang_vel_z is set to [0,0] so yaw is always zeroed for the distillation student.
 commands:
-  hlip_mdn:
+  base_velocity:
     ranges:
-      lin_vel_x: [-0.6, 0.6]
-      lin_vel_y: [-0.2, 0.2]
-      ang_vel_z: [0.0, 0.0]    # yaw masked to 0 for distillation student
+      lin_vel_x: [0, 0.6]
+      lin_vel_y: [0.0, 0.0]
+      ang_vel_z: [0.0, 0.0]
       heading: null

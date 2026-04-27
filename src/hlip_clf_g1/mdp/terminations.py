@@ -175,3 +175,35 @@ def prolonged_double_support(
   setattr(env, buf_name, buf)
 
   return buf > float(max_double_support_time_s)
+
+
+def mpc_fallback_used(
+  env: ManagerBasedRlEnv,
+  command_name: str,
+  min_episode_time_s: float = 1.0,
+) -> torch.Tensor:
+  """Terminate when the MPC planner falls back to zero-velocity recovery.
+
+  A fallback occurs when no valid foothold candidates are found, forcing the
+  MPC to revert to a safe stand-in-place plan.  Terminating on this condition
+  encourages the policy to stay in regions where the terrain is steppable.
+
+  The check is gated by ``min_episode_time_s`` so that episodes are not
+  instantly killed at spawn before the robot has had a chance to establish a
+  stable gait (e.g. the MPC may transiently fire a fallback during the very
+  first footstrike before the heightmap is populated).
+  """
+  from hlip_clf_g1.mdp.hlip_command import HLIPCommandTerm
+
+  cmd: HLIPCommandTerm = env.command_manager.get_term(command_name)
+
+  # Only relevant when MPC is actually enabled.
+  if hasattr(cmd, "_mpc_enabled") and not bool(cmd._mpc_enabled):
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+  elapsed_s = env.episode_length_buf.float() * env.step_dt
+  past_grace = elapsed_s >= float(min_episode_time_s)
+
+  fallback = cmd._mpc_fallback_used > 0.5
+
+  return past_grace & fallback
