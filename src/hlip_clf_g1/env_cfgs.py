@@ -23,7 +23,12 @@ from mjlab.sensor import (
   ObjRef,
   RayCastSensorCfg,
 )
-from mjlab.terrains import BoxSteppingStonesTerrainCfg, BoxPyramidStairsTerrainCfg, BoxInvertedPyramidStairsTerrainCfg
+from mjlab.terrains import (
+  BoxInvertedPyramidStairsTerrainCfg,
+  BoxPyramidStairsTerrainCfg,
+  BoxRandomGridTerrainCfg,
+  BoxSteppingStonesTerrainCfg,
+)
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 from mjlab.terrains import TerrainImporterCfg
 from hlip_clf_g1 import mdp
@@ -288,6 +293,21 @@ def _apply_two_platform_corridor_command_overrides(cfg: ManagerBasedRlEnvCfg) ->
   command_cfg.manual_control = False
 
 
+def _apply_random_box_grid_command_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Use per-step sampled timing and frequent command refreshes on box-grid terrain."""
+  command_cfg = cfg.commands["hlip"]
+
+  command_cfg.rel_standing_envs = 0.0
+  command_cfg.ranges.lin_vel_x = (-0.2, 0.6)
+  command_cfg.ranges.lin_vel_y = (-0.15, 0.15)
+  command_cfg.ranges.ang_vel_z = (-0.2, 0.2)
+
+  command_cfg.mpc_sample_step_time_enabled = True
+  command_cfg.mpc_sample_step_time_range = (0.45, 0.7)
+  command_cfg.mpc_resample_velocity_on_plan = True
+  command_cfg.mpc_height_block_below = None
+
+
 def _apply_distillation_push_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
   """Use gentler interval pushes for distillation robustness training."""
   push_event = cfg.events.get("push_robot")
@@ -496,6 +516,27 @@ TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG = TerrainGeneratorCfg(
 )
 
 
+RANDOM_BOX_GRID_TERRAINS_CFG = TerrainGeneratorCfg(
+  size=(6.0, 6.0),
+  border_width=1.0,
+  num_rows=6,
+  num_cols=6,
+  curriculum=False,
+  sub_terrains={
+    "random_box_grid": BoxRandomGridTerrainCfg(
+      proportion=1.0,
+      grid_width=0.35,
+      grid_height_range=(0.02, 0.12),
+      platform_width=1.0,
+      holes=False,
+      merge_similar_heights=False,
+      border_width=0.25,
+    ),
+  },
+  add_lights=True,
+)
+
+
 def unitree_g1_hlip_simple_stepping_stone_env_cfg(
   play: bool = False,
 ) -> ManagerBasedRlEnvCfg:
@@ -510,6 +551,25 @@ def unitree_g1_hlip_simple_stepping_stone_env_cfg(
   )
   _disable_flat_swing_height_randomization(cfg)
   _apply_complex_terrain_contact_limits(cfg)
+
+  return cfg
+
+
+def unitree_g1_hlip_random_box_grid_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 random box-grid terrain with sampled MPC timing."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  _configure_generated_terrain(
+    cfg,
+    terrain_cfg=RANDOM_BOX_GRID_TERRAINS_CFG,
+    max_init_terrain_level=0,
+    curriculum=False,
+  )
+  _disable_flat_swing_height_randomization(cfg)
+  _apply_complex_terrain_contact_limits(cfg)
+  _apply_random_box_grid_command_overrides(cfg)
 
   return cfg
 

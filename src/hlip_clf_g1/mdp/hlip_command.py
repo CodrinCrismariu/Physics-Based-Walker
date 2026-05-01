@@ -343,6 +343,17 @@ class HLIPCommandTerm(CommandTerm):
     self._mpc_horizon = max(int(getattr(cfg, "mpc_horizon", 3)), 1)
     self._mpc_t_candidates = max(int(getattr(cfg, "mpc_t_candidates", 7)), 1)
     self._mpc_t_nom = 0.5 * (self.T_min + self.T_max)
+    self._mpc_sample_step_time_enabled = bool(
+      getattr(cfg, "mpc_sample_step_time_enabled", False)
+    )
+    sample_t_range = getattr(cfg, "mpc_sample_step_time_range", None)
+    if sample_t_range is None:
+      sample_t_range = (self.T_min, self.T_max)
+    self._mpc_sample_t_min = float(sample_t_range[0])
+    self._mpc_sample_t_max = float(sample_t_range[1])
+    self._mpc_resample_velocity_on_plan = bool(
+      getattr(cfg, "mpc_resample_velocity_on_plan", False)
+    )
     self._mpc_w_vel = float(getattr(cfg, "mpc_w_vel", 1.0))
     self._mpc_w_time = float(getattr(cfg, "mpc_w_time", 0.2))
     self._mpc_w_foot = float(getattr(cfg, "mpc_w_foot", 0.05))
@@ -390,6 +401,9 @@ class HLIPCommandTerm(CommandTerm):
     self._hm_num_x = 0
     self._hm_num_y = 0
     self._hm_edge_threshold = float(getattr(cfg, "mpc_edge_height_threshold", -1.0))
+    self._hm_height_block_below = getattr(cfg, "mpc_height_block_below", 0.0)
+    if self._hm_height_block_below is not None:
+      self._hm_height_block_below = float(self._hm_height_block_below)
     self._hm_edge_clearance_distance = max(
       float(getattr(cfg, "mpc_edge_clearance_distance", 0.0)),
       0.0,
@@ -571,8 +585,9 @@ class HLIPCommandTerm(CommandTerm):
 
     A cell is edge-safe when all four cardinal neighbors are valid and
     height differences are below the
-    configured threshold. Cells with world height below zero are marked as
-    hard unsteppable, then a clearance margin is applied from blocked cells.
+    configured threshold. Cells below ``mpc_height_block_below`` are marked as
+    hard unsteppable when that threshold is enabled, then a clearance margin
+    is applied from blocked cells.
     Cells that pass edge checks but fail clearance are marked as near-edge.
     """
     del stance_z_w
@@ -631,8 +646,10 @@ class HLIPCommandTerm(CommandTerm):
       valid_grid = d_grid >= 0.0
       is_non_edge_grid = c_up & c_down & c_left & c_right & valid_grid
 
-      # Absolute world-z steppability rule: below-ground hits are unsteppable.
-      height_blocked_grid = valid_grid & (z_grid < 0.0)
+      if self._hm_height_block_below is None:
+        height_blocked_grid = torch.zeros_like(valid_grid)
+      else:
+        height_blocked_grid = valid_grid & (z_grid < self._hm_height_block_below)
 
       edge_distance_grid = torch.full_like(z_grid, float("inf"))
       clearance_cells = 0
@@ -925,12 +942,13 @@ class HLIPCommandTerm(CommandTerm):
     local_hits: torch.Tensor,
     valid_hits: torch.Tensor,
     edge_penalty: torch.Tensor,
+    forced_plan_t: torch.Tensor | None = None,
   ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Solve a discrete MPC preview by minimizing velocity error over feasible candidates."""
     n = len(env_ids)
     horizon = self._mpc_horizon
-    num_t = len(self._mpc_t_grid)
     num_rays = local_hits.shape[1]
+    num_t = 1 if forced_plan_t is not None else len(self._mpc_t_grid)
     num_cands = num_rays * num_t
     
     # -----------------------------------------------------------------
@@ -948,7 +966,11 @@ class HLIPCommandTerm(CommandTerm):
     cand_z = local_hits[:, :, 2].unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_valid = valid_hits.unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
     cand_penalty = edge_penalty.unsqueeze(-1).expand(n, num_rays, num_t).reshape(n, num_cands)
-    cand_t = self._mpc_t_grid.view(1, num_t).expand(n, num_rays, num_t).reshape(n, num_cands)
+    if forced_plan_t is None:
+      cand_t_grid = self._mpc_t_grid.view(1, num_t).expand(n, num_rays, num_t)
+      cand_t_base = cand_t_grid.reshape(n, num_cands)
+    else:
+      cand_t_base = None
 
     best_plan_t = torch.full((n, horizon), self._mpc_t_nom, device=self.device)
     best_plan_foot = torch.zeros(n, horizon, 3, device=self.device)
@@ -981,6 +1003,13 @@ class HLIPCommandTerm(CommandTerm):
 
         dx = cand_x - prev_foot_abs[:, 0].unsqueeze(-1)
         dy = cand_y - prev_foot_abs[:, 1].unsqueeze(-1)
+        if forced_plan_t is None:
+          cand_t = cand_t_base
+          fallback_t = torch.full((n,), self._mpc_t_nom, device=self.device)
+        else:
+          forced_t = torch.clamp(forced_plan_t[:, k], self.T_min, self.T_max)
+          cand_t = forced_t.view(n, 1).expand(n, num_cands)
+          fallback_t = forced_t
         dt = cand_t
 
         x_ok = (dx >= self._mpc_x_min) & (dx <= self._mpc_x_max)
@@ -1020,8 +1049,8 @@ class HLIPCommandTerm(CommandTerm):
 
         # Fallback logic
         fallback_foot = prev_foot_abs.clone()
-        fallback_foot[:, 0] += cmd_xy[:, 0] * self._mpc_t_nom
-        fallback_dy = (side_offset + cmd_xy[:, 1]) * self._mpc_t_nom
+        fallback_foot[:, 0] += cmd_xy[:, 0] * fallback_t
+        fallback_dy = (side_offset + cmd_xy[:, 1]) * fallback_t
         fallback_dy_abs = torch.clamp(
           torch.abs(fallback_dy),
           min=self._mpc_abs_y_min,
@@ -1047,7 +1076,7 @@ class HLIPCommandTerm(CommandTerm):
         plan_t_s[:, k] = torch.where(
           feasible_k,
           chosen_t,
-          torch.full_like(chosen_t, self._mpc_t_nom),
+          fallback_t,
         )
         plan_foot_s[:, k, :] = torch.where(
           feasible_k.unsqueeze(-1),
@@ -1078,10 +1107,31 @@ class HLIPCommandTerm(CommandTerm):
     if len(env_ids) == 0:
       return
 
+    if self._mpc_resample_velocity_on_plan:
+      self._sample_velocity_command(env_ids, update_standing_fraction=False)
+      self._apply_manual_control(env_ids)
+      self._apply_fixed_linear_command(env_ids)
+      self._apply_yaw_hold_control(env_ids)
+
     candidates = self._get_heightmap_candidates(env_ids)
     n = len(env_ids)
+    forced_plan_t = None
+    if self._mpc_sample_step_time_enabled:
+      t_min = max(self._mpc_sample_t_min, self.T_min)
+      t_max = min(self._mpc_sample_t_max, self.T_max)
+      if t_max < t_min:
+        t_min, t_max = self.T_min, self.T_max
+      forced_plan_t = torch.empty(
+        n,
+        self._mpc_horizon,
+        device=self.device,
+      ).uniform_(t_min, t_max)
+
     if candidates is None:
-      fallback_t = torch.full((n, self._mpc_horizon), self._mpc_t_nom, device=self.device)
+      if forced_plan_t is None:
+        fallback_t = torch.full((n, self._mpc_horizon), self._mpc_t_nom, device=self.device)
+      else:
+        fallback_t = forced_plan_t
       fallback_foot = torch.zeros(n, self._mpc_horizon, 3, device=self.device)
       prev_foot = torch.zeros(n, 3, device=self.device)
       for k in range(self._mpc_horizon):
@@ -1119,6 +1169,7 @@ class HLIPCommandTerm(CommandTerm):
       local_hits,
       valid_hits,
       edge_penalty,
+      forced_plan_t=forced_plan_t,
     )
     best_cmd = base_cmd
     fallback_used = ~best_feasible
@@ -1963,43 +2014,49 @@ class HLIPCommandTerm(CommandTerm):
     self._generate_reference_trajectory()
     self._get_actual_state()
 
-  def _resample_command(self, env_ids: torch.Tensor) -> None:
-    # Keep the viewer-selected env under manual control; resample others normally.
+  def _sample_velocity_command(
+    self,
+    env_ids: torch.Tensor,
+    *,
+    update_standing_fraction: bool,
+  ) -> None:
+    """Sample velocity commands for selected envs, respecting manual/fixed modes."""
     sample_env_ids = env_ids
     if self._manual_control_enabled():
       manual_idx = self._manual_control_target_env_idx()
       sample_env_ids = env_ids[env_ids != manual_idx]
 
     n = len(sample_env_ids)
-    if n > 0:
-      r = torch.empty(n, device=self.device)
+    if n == 0:
+      return
 
-      if self._fixed_velocity_command_enabled:
-        # Keep the translational command deterministic for corridor tasks.
-        self.vel_command[sample_env_ids, 0] = self._fixed_lin_vel_x
-        self.vel_command[sample_env_ids, 1] = self._fixed_lin_vel_y
-        self.vel_command[sample_env_ids, 2] = 0.0
-      else:
-        # Sample velocity command.
-        self.vel_command[sample_env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
-        self.vel_command[sample_env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
-        self.vel_command[sample_env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+    r = torch.empty(n, device=self.device)
+    if self._fixed_velocity_command_enabled:
+      self.vel_command[sample_env_ids, 0] = self._fixed_lin_vel_x
+      self.vel_command[sample_env_ids, 1] = self._fixed_lin_vel_y
+      self.vel_command[sample_env_ids, 2] = 0.0
+    else:
+      self.vel_command[sample_env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+      self.vel_command[sample_env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+      self.vel_command[sample_env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
 
-        # Zero small commands.
-        cmd_mag = (
-          torch.norm(self.vel_command[sample_env_ids, :2], dim=1)
-          + torch.abs(self.vel_command[sample_env_ids, 2])
-        )
-        self.vel_command[sample_env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
+      cmd_mag = (
+        torch.norm(self.vel_command[sample_env_ids, :2], dim=1)
+        + torch.abs(self.vel_command[sample_env_ids, 2])
+      )
+      self.vel_command[sample_env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
 
-      # Standing fraction.
+    if update_standing_fraction:
       self.is_standing_env[sample_env_ids] = (
         r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
       )
-      standing = sample_env_ids[self.is_standing_env[sample_env_ids]]
-      if len(standing) > 0:
-        self.vel_command[standing] = 0.0
 
+    standing = sample_env_ids[self.is_standing_env[sample_env_ids]]
+    if len(standing) > 0:
+      self.vel_command[standing] = 0.0
+
+  def _resample_command(self, env_ids: torch.Tensor) -> None:
+    self._sample_velocity_command(env_ids, update_standing_fraction=True)
     self._apply_manual_control(env_ids)
 
     # Reset gait phase and initialise step time.
@@ -2600,6 +2657,15 @@ class HLIPCommandCfg(CommandTermCfg):
   mpc_t_candidates: int = 7
   """Number of discrete step-time candidates in [T_min, T_max]."""
 
+  mpc_sample_step_time_enabled: bool = False
+  """Sample and enforce per-step MPC times instead of optimizing over the time grid."""
+
+  mpc_sample_step_time_range: tuple[float, float] | None = None
+  """Uniform sampling range for enforced MPC step times. If None, use [T_min, T_max]."""
+
+  mpc_resample_velocity_on_plan: bool = False
+  """Resample velocity commands every time MPC plans a new step horizon."""
+
   mpc_w_vel: float = 1.0
   """Weight for linear velocity tracking in MPC cost."""
 
@@ -2626,6 +2692,9 @@ class HLIPCommandCfg(CommandTermCfg):
 
   mpc_edge_height_threshold: float = -1.0
   """Height-difference edge threshold; <0 derives from heightmap resolution."""
+
+  mpc_height_block_below: float | None = 0.0
+  """World-z threshold below which heightmap hits are hard unsteppable; None disables."""
 
   mpc_edge_clearance_distance: float = 0.0
   """Edge-cost clearance radius [m]; footholds farther than this have zero edge cost."""
