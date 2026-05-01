@@ -593,6 +593,47 @@ def unitree_g1_hlip_two_platform_stepping_corridor_env_cfg(
 
   return cfg
 
+
+def _apply_random_box_grid_teacher_command_overrides(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Use single-step HLIP targets with per-transition random commands."""
+  command_cfg = cfg.commands["hlip"]
+  command_cfg.mpc_enabled = False
+  command_cfg.resample_velocity_at_transition = True
+  command_cfg.resampling_time_range = (1.0e9, 1.0e9)
+  command_cfg.rel_standing_envs = 0.0
+  command_cfg.manual_control = False
+  command_cfg.ranges.lin_vel_x = (-0.6, 0.6)
+  command_cfg.ranges.lin_vel_y = (-0.2, 0.2)
+  command_cfg.ranges.ang_vel_z = (-0.4, 0.4)
+
+
+def unitree_g1_hlip_random_box_grid_teacher_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 teacher task on a random-height grid of boxes.
+
+  Commands are resampled at every stance transition. MPC is disabled, so each
+  transition uses the sampled velocity and step time directly through the HLIP
+  one-step touchdown calculation.
+  """
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  _configure_generated_terrain(
+    cfg,
+    terrain_cfg=RANDOM_BOX_GRID_TERRAINS_CFG,
+    max_init_terrain_level=0,
+    curriculum=False,
+  )
+  _disable_flat_swing_height_randomization(cfg)
+  _apply_complex_terrain_contact_limits(cfg)
+  _apply_random_box_grid_teacher_command_overrides(cfg)
+  cfg.terminations.pop("foot_height_too_low", None)
+
+  if play:
+    cfg.commands["hlip"].manual_control = True
+
+  return cfg
+
 # ---------------------------------------------------------------------------
 # Stairs terrain
 # ---------------------------------------------------------------------------
