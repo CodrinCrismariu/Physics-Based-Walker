@@ -202,6 +202,13 @@ class HLIPCommandTerm(CommandTerm):
     )
     self._fixed_lin_vel_x = float(getattr(cfg, "fixed_lin_vel_x", 0.0))
     self._fixed_lin_vel_y = float(getattr(cfg, "fixed_lin_vel_y", 0.0))
+    self._resample_velocity_on_step = bool(
+      getattr(cfg, "resample_velocity_on_step", False)
+    )
+    self._resample_velocity_on_step_probability = min(
+      max(float(getattr(cfg, "resample_velocity_on_step_probability", 1.0)), 0.0),
+      1.0,
+    )
     self._yaw_hold_enabled = bool(getattr(cfg, "yaw_hold_enabled", False))
     self._yaw_hold_target = float(getattr(cfg, "yaw_hold_target", 0.0))
     self._yaw_hold_kp = float(getattr(cfg, "yaw_hold_kp", 0.0))
@@ -1381,6 +1388,19 @@ class HLIPCommandTerm(CommandTerm):
         self._mpc_replan_pending[trans_ids] = False
         self._plan_mpc_transition(trans_ids)
       else:
+        if self._resample_velocity_on_step:
+          sample_ids = trans_ids
+          if self._manual_control_enabled():
+            manual_idx = self._manual_control_target_env_idx()
+            sample_ids = trans_ids[trans_ids != manual_idx]
+          if self._resample_velocity_on_step_probability < 1.0:
+            sample_mask = (
+              torch.rand(len(sample_ids), device=self.device)
+              < self._resample_velocity_on_step_probability
+            )
+            sample_ids = sample_ids[sample_mask]
+          self._sample_velocity_command(sample_ids)
+
         self.T[trans_ids] = torch.empty(len(trans_ids), device=self.device).uniform_(
           self.T_min,
           self.T_max,
@@ -1970,35 +1990,7 @@ class HLIPCommandTerm(CommandTerm):
       manual_idx = self._manual_control_target_env_idx()
       sample_env_ids = env_ids[env_ids != manual_idx]
 
-    n = len(sample_env_ids)
-    if n > 0:
-      r = torch.empty(n, device=self.device)
-
-      if self._fixed_velocity_command_enabled:
-        # Keep the translational command deterministic for corridor tasks.
-        self.vel_command[sample_env_ids, 0] = self._fixed_lin_vel_x
-        self.vel_command[sample_env_ids, 1] = self._fixed_lin_vel_y
-        self.vel_command[sample_env_ids, 2] = 0.0
-      else:
-        # Sample velocity command.
-        self.vel_command[sample_env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
-        self.vel_command[sample_env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
-        self.vel_command[sample_env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
-
-        # Zero small commands.
-        cmd_mag = (
-          torch.norm(self.vel_command[sample_env_ids, :2], dim=1)
-          + torch.abs(self.vel_command[sample_env_ids, 2])
-        )
-        self.vel_command[sample_env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
-
-      # Standing fraction.
-      self.is_standing_env[sample_env_ids] = (
-        r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
-      )
-      standing = sample_env_ids[self.is_standing_env[sample_env_ids]]
-      if len(standing) > 0:
-        self.vel_command[standing] = 0.0
+    self._sample_velocity_command(sample_env_ids)
 
     self._apply_manual_control(env_ids)
 
@@ -2046,6 +2038,37 @@ class HLIPCommandTerm(CommandTerm):
     self.vdot[env_ids] = 0.0
     self.v_buffer[env_ids] = 0.0
     self.vdot_buffer[env_ids] = 0.0
+
+  def _sample_velocity_command(self, env_ids: torch.Tensor) -> None:
+    """Sample velocity commands for the selected environments."""
+    n = len(env_ids)
+    if n == 0:
+      return
+
+    r = torch.empty(n, device=self.device)
+
+    if self._fixed_velocity_command_enabled:
+      # Keep the translational command deterministic for corridor tasks.
+      self.vel_command[env_ids, 0] = self._fixed_lin_vel_x
+      self.vel_command[env_ids, 1] = self._fixed_lin_vel_y
+      self.vel_command[env_ids, 2] = 0.0
+    else:
+      self.vel_command[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+      self.vel_command[env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+      self.vel_command[env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+
+      cmd_mag = (
+        torch.norm(self.vel_command[env_ids, :2], dim=1)
+        + torch.abs(self.vel_command[env_ids, 2])
+      )
+      self.vel_command[env_ids] *= (cmd_mag > 0.1).unsqueeze(1)
+
+    self.is_standing_env[env_ids] = (
+      r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+    )
+    standing = env_ids[self.is_standing_env[env_ids]]
+    if len(standing) > 0:
+      self.vel_command[standing] = 0.0
 
   def _apply_fixed_linear_command(
     self,
@@ -2737,6 +2760,12 @@ class HLIPCommandCfg(CommandTermCfg):
 
   fixed_lin_vel_y: float = 0.0
   """Fixed commanded lateral velocity [m/s] when deterministic mode is enabled."""
+
+  resample_velocity_on_step: bool = False
+  """Resample random velocity commands at every non-MPC stance transition."""
+
+  resample_velocity_on_step_probability: float = 1.0
+  """Probability of resampling velocity at each non-MPC stance transition."""
 
   yaw_hold_enabled: bool = False
   """Enable yaw-hold proportional control for commanded yaw rate."""

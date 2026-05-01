@@ -146,6 +146,13 @@ def unitree_g1_hlip_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   )
 
 
+def unitree_g1_hlip_random_step_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+  """Create PPO runner config for the flat random-step HLIP task."""
+  cfg = unitree_g1_hlip_ppo_runner_cfg()
+  cfg.experiment_name = "g1_hlip_clf_random_step"
+  return cfg
+
+
 def unitree_g1_hlip_corridor_ppo_from_distillation_mdn_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   """PPO config to fine-tune corridor policies from MDN distillation students.
 

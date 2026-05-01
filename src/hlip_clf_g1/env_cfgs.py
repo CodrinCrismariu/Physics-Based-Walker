@@ -425,6 +425,22 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   return cfg
 
 
+def unitree_g1_hlip_random_step_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
+  """Create flat-terrain HLIP config with random step-time and velocity sampling."""
+  cfg = unitree_g1_hlip_env_cfg(play=play)
+
+  command_cfg = cfg.commands["hlip"]
+  command_cfg.mpc_enabled = False
+  command_cfg.resample_velocity_on_step = True
+  command_cfg.resample_velocity_on_step_probability = 0.4
+  command_cfg.rel_standing_envs = 0.0
+
+  if play:
+    command_cfg.manual_control = False
+
+  return cfg
+
+
 # ---------------------------------------------------------------------------
 # Stepping-stone terrain
 # ---------------------------------------------------------------------------
