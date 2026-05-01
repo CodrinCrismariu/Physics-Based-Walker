@@ -593,6 +593,7 @@ def unitree_g1_hlip_random_box_grid_teacher_env_cfg(
   _disable_flat_swing_height_randomization(cfg)
   _apply_complex_terrain_contact_limits(cfg)
   _apply_random_box_grid_teacher_command_overrides(cfg)
+  cfg.terminations.pop("foot_height_too_low", None)
 
   if play:
     cfg.commands["hlip"].manual_control = True
