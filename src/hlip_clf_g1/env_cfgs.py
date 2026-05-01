@@ -8,6 +8,7 @@ from mjlab.asset_zoo.robots import (
   G1_ACTION_SCALE,
   get_g1_robot_cfg,
 )
+
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
@@ -113,7 +114,7 @@ def _make_head_camera_sensor() -> CameraSensorCfg:
     name="head_camera",
     parent_body="robot/torso_link",
     pos=(0.15, 0.0, 0.3),#(0.06, 0.0, 0.45),
-    quat=(0, -0.2588192, 0, 0.9659258),#(0, -0.1986693, 0, 0.9800666),#(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
+    quat=(0, -0.1986693, 0, 0.9800666),#(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
     width=HEAD_CAMERA_WIDTH,
     height=HEAD_CAMERA_HEIGHT,
     fovy=55.2,

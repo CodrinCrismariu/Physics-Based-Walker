@@ -216,12 +216,12 @@ std::vector<float> State_HLIPMdn::build_student_vec()
     }
 
     // [6:9] velocity_commands: [vx, 0, 0] * 2.0
-    // vx = joy.ly() * 0.6, vy = 0, yaw = 0.
+    // vx = joy.ly() * 0.5, vy = 0, yaw = 0.
     // Scaled x2: ObservationTermCfg(scale=(2.0, 2.0, 2.0)).
     {
-        constexpr float VX_MAX = 0.6f;
+        constexpr float VX_MAX = 0.5f;
         const float vx = FSMState::lowstate->joystick.ly() * VX_MAX;
-        obs.push_back(vx * 2.0f);  // vx in [-1.2, 1.2]
+        obs.push_back(vx * 2.0f);  // vx in [-1, 1]
         obs.push_back(0.0f);        // vy = 0
         obs.push_back(0.0f);        // yaw_rate = 0
     }

@@ -167,7 +167,7 @@ observations:
 commands:
   base_velocity:
     ranges:
-      lin_vel_x: [0, 0.6]
+      lin_vel_x: [0, 0.5]
       lin_vel_y: [0.0, 0.0]
       ang_vel_z: [0.0, 0.0]
       heading: null

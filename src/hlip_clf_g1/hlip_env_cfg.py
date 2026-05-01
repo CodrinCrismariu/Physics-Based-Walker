@@ -464,9 +464,11 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
     "base_ang_vel": ObservationTermCfg(
       func=mdp.builtin_sensor,
       params={"sensor_name": "robot/imu_ang_vel"},
+      noise=Unoise(n_min=-0.04, n_max=0.04),# noise=Unoise(n_min=-0.2, n_max=0.2),
     ),
     "projected_gravity": ObservationTermCfg(
       func=mdp.projected_gravity,
+      noise=Unoise(n_min=-0.01, n_max=0.01), # noise=Unoise(n_min=-0.05, n_max=0.05),
     ),
     "velocity_commands": ObservationTermCfg(
       func=mdp.hlip_velocity_command,
@@ -475,9 +477,11 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "joint_pos": ObservationTermCfg(
       func=mdp.joint_pos_rel,
+      noise=Unoise(n_min=-0.002, n_max=0.002),# noise=Unoise(n_min=-0.01, n_max=0.01),
     ),
     "joint_vel": ObservationTermCfg(
       func=mdp.joint_vel_rel,
+      noise=Unoise(n_min=-0.2, n_max=0.2),# noise=Unoise(n_min=-1.0, n_max=1.0),
       scale=0.05,
     ),
     "actions": ObservationTermCfg(func=mdp.last_action),
@@ -491,6 +495,9 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
         "depth_noise_scale": 0.1,
       },
       clip=(0.0, 10.0),
+      delay_hold_prob=1,
+      delay_min_lag=2,
+      delay_max_lag=4,
     ),
   }
 
@@ -498,7 +505,7 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
     "student_vec": ObservationGroupCfg(
       terms=student_vec_terms,
       concatenate_terms=True,
-      enable_corruption=False,
+      enable_corruption=True,
       history_length=1,
     ),
     "head_camera_depth": ObservationGroupCfg(
