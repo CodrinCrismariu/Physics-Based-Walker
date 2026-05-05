@@ -465,10 +465,14 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.builtin_sensor,
       params={"sensor_name": "robot/imu_ang_vel"},
       noise=Unoise(n_min=-0.04, n_max=0.04),# noise=Unoise(n_min=-0.2, n_max=0.2),
+      delay_min_lag=0,
+      delay_max_lag=1,
     ),
     "projected_gravity": ObservationTermCfg(
       func=mdp.projected_gravity,
       noise=Unoise(n_min=-0.01, n_max=0.01), # noise=Unoise(n_min=-0.05, n_max=0.05),
+      delay_min_lag=0,
+      delay_max_lag=1,
     ),
     "velocity_commands": ObservationTermCfg(
       func=mdp.hlip_velocity_command,
@@ -478,11 +482,15 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
     "joint_pos": ObservationTermCfg(
       func=mdp.joint_pos_rel,
       noise=Unoise(n_min=-0.002, n_max=0.002),# noise=Unoise(n_min=-0.01, n_max=0.01),
+      delay_min_lag=0,
+      delay_max_lag=1,
     ),
     "joint_vel": ObservationTermCfg(
       func=mdp.joint_vel_rel,
       noise=Unoise(n_min=-0.2, n_max=0.2),# noise=Unoise(n_min=-1.0, n_max=1.0),
       scale=0.05,
+      delay_min_lag=0,
+      delay_max_lag=1,
     ),
     "actions": ObservationTermCfg(func=mdp.last_action),
   }

@@ -324,8 +324,8 @@ def _apply_distillation_task_overrides(
   _add_head_camera_sensor(cfg)
   if play:
     cfg.commands["hlip"].manual_control = True
-    cfg.observations["student_vec"].enable_corruption = False
-    _make_play_mode_depth_deterministic(cfg)
+    # cfg.observations["student_vec"].enable_corruption = False
+    # _make_play_mode_depth_deterministic(cfg)
   else:
     _add_head_camera_dr_events(cfg)
 
