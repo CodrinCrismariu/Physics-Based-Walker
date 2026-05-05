@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import xml.etree.ElementTree as ET
 
 import mujoco
@@ -50,6 +51,6 @@ def get_g1_no_hands_spec() -> mujoco.MjSpec:
 
 def get_g1_no_hands_robot_cfg() -> EntityCfg:
   """Return a fresh G1 robot config that uses the no-hands MJCF spec."""
-  cfg = g1_constants.get_g1_robot_cfg()
+  cfg = deepcopy(g1_constants.get_g1_robot_cfg())
   cfg.spec_fn = get_g1_no_hands_spec
   return cfg

@@ -2,8 +2,16 @@
 
 import math
 import re
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
+import torch
+from mjlab.actuator import (
+  BuiltinPositionActuator,
+  DelayedActuator,
+  DelayedActuatorCfg,
+  IdealPdActuator,
+  XmlPositionActuator,
+)
 from mjlab.asset_zoo.robots import (
   G1_ACTION_SCALE,
 )
@@ -11,7 +19,7 @@ from mjlab.asset_zoo.robots import (
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
-from mjlab.managers.event_manager import EventTermCfg
+from mjlab.managers.event_manager import EventTermCfg, requires_model_fields
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
 from mjlab.sensor import (
@@ -33,6 +41,130 @@ from hlip_clf_g1.hlip_env_cfg import make_hlip_env_cfg, make_hlip_distillation_e
 
 HEAD_CAMERA_WIDTH = 32
 HEAD_CAMERA_HEIGHT = 24
+G1_MOTOR_DELAY_MAX_S = 0.020
+
+
+class EpisodeRandomDelayedActuator(DelayedActuator):
+  """Delayed actuator with a fixed per-episode sampled lag."""
+
+  def reset(self, env_ids: torch.Tensor | slice | None = None) -> None:
+    super().reset(env_ids)
+
+    delay_buffers = tuple(self._delay_buffers.values())
+    if not delay_buffers:
+      return
+
+    batch_size = delay_buffers[0].batch_size
+    device = delay_buffers[0].device
+    if env_ids is None:
+      num_envs = batch_size
+      target_env_ids = None
+    elif isinstance(env_ids, slice):
+      target_env_ids = torch.arange(batch_size, device=device, dtype=torch.long)[env_ids]
+      num_envs = int(target_env_ids.numel())
+    else:
+      target_env_ids = env_ids.to(device=device, dtype=torch.long)
+      num_envs = int(target_env_ids.numel())
+
+    if num_envs <= 0:
+      return
+
+    lags = torch.randint(
+      int(self.cfg.delay_min_lag),
+      int(self.cfg.delay_max_lag) + 1,
+      (num_envs,),
+      device=device,
+      dtype=torch.long,
+    )
+    self.set_lags(lags, target_env_ids)
+
+
+@dataclass(kw_only=True)
+class EpisodeRandomDelayedActuatorCfg(DelayedActuatorCfg):
+  """Delayed actuator config that samples lag on every episode reset."""
+
+  def build(self, entity, target_ids: list[int], target_names: list[str]):
+    base_actuator = self.base_cfg.build(entity, target_ids, target_names)
+    return EpisodeRandomDelayedActuator(self, base_actuator)
+
+
+def _apply_g1_motor_delay(
+  robot_cfg,
+  physics_dt: float,
+  max_delay_s: float = G1_MOTOR_DELAY_MAX_S,
+) -> None:
+  """Wrap G1 position actuators with per-episode motor command delay."""
+  max_lag = max(0, int(round(max_delay_s / physics_dt)))
+
+  robot_cfg.articulation.actuators = tuple(
+    (
+      actuator_cfg
+      if isinstance(actuator_cfg, DelayedActuatorCfg)
+      else EpisodeRandomDelayedActuatorCfg(
+        base_cfg=actuator_cfg,
+        delay_target="position",
+        delay_min_lag=0,
+        delay_max_lag=max_lag,
+        delay_hold_prob=1.0,
+      )
+    )
+    for actuator_cfg in robot_cfg.articulation.actuators
+  )
+
+
+@requires_model_fields("actuator_forcerange")
+def _g1_effort_limits_with_delayed_actuators(
+  env,
+  env_ids: torch.Tensor | None,
+  effort_limit_range: tuple[float, float],
+  asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> None:
+  """Randomize effort limits for plain or delayed position actuators."""
+  asset = env.scene[asset_cfg.name]
+
+  if env_ids is None:
+    env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.long)
+  else:
+    env_ids = env_ids.to(env.device, dtype=torch.long)
+
+  if isinstance(asset_cfg.actuator_ids, list):
+    actuators = [asset.actuators[i] for i in asset_cfg.actuator_ids]
+  else:
+    actuators = asset.actuators[asset_cfg.actuator_ids]
+  if not isinstance(actuators, list):
+    actuators = [actuators]
+
+  low, high = effort_limit_range
+  for actuator in actuators:
+    base_actuator = (
+      actuator.base_actuator if isinstance(actuator, DelayedActuator) else actuator
+    )
+    ctrl_ids = base_actuator.global_ctrl_ids
+    effort_samples = torch.rand(
+      (len(env_ids), len(ctrl_ids)),
+      device=env.device,
+      dtype=torch.float32,
+    ) * (high - low) + low
+
+    if isinstance(base_actuator, (BuiltinPositionActuator, XmlPositionActuator)):
+      default_forcerange = env.sim.get_default_field("actuator_forcerange")
+      env.sim.model.actuator_forcerange[env_ids[:, None], ctrl_ids, 0] = (
+        default_forcerange[ctrl_ids, 0] * effort_samples
+      )
+      env.sim.model.actuator_forcerange[env_ids[:, None], ctrl_ids, 1] = (
+        default_forcerange[ctrl_ids, 1] * effort_samples
+      )
+    elif isinstance(base_actuator, IdealPdActuator):
+      assert base_actuator.default_force_limit is not None
+      base_actuator.set_effort_limit(
+        env_ids,
+        effort_limit=base_actuator.default_force_limit[env_ids] * effort_samples,
+      )
+    else:
+      raise TypeError(
+        "G1 effort-limit randomization supports position and ideal-PD actuators, "
+        f"got {type(base_actuator).__name__}."
+      )
 
 
 def _apply_g1_joint_pd_gains(robot_cfg) -> None:
@@ -173,6 +305,49 @@ def _make_play_mode_depth_deterministic(cfg: ManagerBasedRlEnvCfg) -> None:
   #   depth_term.params["depth_noise_scale"] = 0.0
   #   depth_term.params["close_depth_bleed_radius"] = 0
   #   depth_term.params["close_depth_bleed_prob"] = 0.0
+
+
+def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Add conservative G1 motor and joint dynamics randomization."""
+  actuator_asset_cfg = SceneEntityCfg("robot")
+  joint_asset_cfg = SceneEntityCfg("robot")
+
+  cfg.events["motor_pd_gains"] = EventTermCfg(
+    mode="startup",
+    func=mdp.dr.pd_gains,
+    params={
+      "asset_cfg": actuator_asset_cfg,
+      "operation": "scale",
+      "kp_range": (0.85, 1.15),
+      "kd_range": (0.75, 1.25),
+    },
+  )
+  cfg.events["motor_effort_limits"] = EventTermCfg(
+    mode="startup",
+    func=_g1_effort_limits_with_delayed_actuators,
+    params={
+      "asset_cfg": actuator_asset_cfg,
+      "effort_limit_range": (0.85, 1.1),
+    },
+  )
+  cfg.events["joint_damping"] = EventTermCfg(
+    mode="startup",
+    func=mdp.dr.joint_damping,
+    params={
+      "asset_cfg": joint_asset_cfg,
+      "operation": "scale",
+      "ranges": (0.75, 1.25),
+    },
+  )
+  cfg.events["joint_friction"] = EventTermCfg(
+    mode="startup",
+    func=mdp.dr.joint_friction,
+    params={
+      "asset_cfg": joint_asset_cfg,
+      "operation": "add",
+      "ranges": (0.0, 0.04),
+    },
+  )
 
 
 def _configure_generated_terrain(
@@ -336,6 +511,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # ── Scene ──────────────────────────────────────────────────────────
   robot_cfg = get_g1_no_hands_robot_cfg()
   _apply_g1_joint_pd_gains(robot_cfg)
+  _apply_g1_motor_delay(robot_cfg, physics_dt=cfg.sim.mujoco.timestep)
   cfg.scene.entities = {"robot": robot_cfg}
 
   feet_ground_cfg = ContactSensorCfg(
@@ -403,6 +579,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
 
   # ── Per-robot event config ─────────────────────────────────────────
   cfg.events["base_com"].params["asset_cfg"].body_names = ("torso_link",)
+  _add_g1_hardware_dr_events(cfg)
 
   # ── Per-robot reward config ────────────────────────────────────────
   # Self-collision reward.
