@@ -106,6 +106,10 @@ def _make_distillation_mdn_algorithm_cfg() -> RslRlDistillationAlgorithmCfg:
     max_grad_norm=2.0,
     optimizer="adam",
     loss_type="huber",
+    mdn_loss_type="teacher_distribution",
+    mdn_teacher_num_samples=8,
+    mdn_teacher_std_scale=0.1,
+    mdn_teacher_sample_std_floor=1.0e-6,
     mdn_entropy_coef=0.0,
   )
 

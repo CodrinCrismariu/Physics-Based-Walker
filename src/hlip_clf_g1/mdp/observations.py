@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import torch.nn.functional as F
 
 from mjlab.entity import Entity
 from mjlab.managers.scene_entity_config import SceneEntityCfg
@@ -294,24 +295,104 @@ def depth_camera_chw_data(
   )
 
 
+def _apply_close_depth_bleed(
+  depth: torch.Tensor,
+  min_depth: float,
+  close_depth_bleed_radius: int,
+  close_depth_bleed_prob: float,
+  close_depth_bleed_max_depth: float,
+) -> torch.Tensor:
+  """Randomly propagate close depth pixels into nearby farther pixels.
+
+  ``close_depth_bleed_radius`` is the maximum radius. The bleed grows outward
+  one pixel at a time, and each new pixel must be reached through a pixel that
+  already propagated. The effective radius shrinks with distance, so the
+  closest pixels corrupt the widest neighborhood.
+  """
+  max_radius = int(close_depth_bleed_radius)
+  bleed_prob = float(close_depth_bleed_prob)
+  if max_radius <= 0 or bleed_prob <= 0.0:
+    return depth
+
+  def _close_weight(local_close_depth: torch.Tensor) -> torch.Tensor:
+    if close_depth_bleed_max_depth > min_depth:
+      return (
+        (close_depth_bleed_max_depth - local_close_depth)
+        / (close_depth_bleed_max_depth - min_depth)
+      ).clamp(0.0, 1.0)
+    return torch.ones_like(depth)
+
+  source_weight = _close_weight(depth)
+  source_depth = torch.where(
+    source_weight > 0.0,
+    depth,
+    torch.full_like(depth, float("inf")),
+  )
+  bled_depth = depth
+
+  for radius in range(1, max_radius + 1):
+    local_close_depth = -F.max_pool2d(
+      -source_depth,
+      kernel_size=3,
+      stride=1,
+      padding=1,
+    )
+
+    close_weight = _close_weight(local_close_depth)
+    radius_threshold = (radius - 0.5) / max_radius
+    can_reach = close_weight >= radius_threshold
+    can_bleed = can_reach & (local_close_depth < depth)
+
+    per_pixel_prob = min(max(bleed_prob, 0.0), 1.0) * close_weight
+    bleed_mask = (torch.rand_like(depth) < per_pixel_prob) & can_bleed
+    candidate_depth = torch.where(can_bleed, local_close_depth, depth)
+    bleed_strength = torch.rand_like(depth) * (0.5 + 0.5 * close_weight)
+    bled_depth = torch.where(
+      bleed_mask,
+      torch.lerp(depth, candidate_depth, bleed_strength),
+      bled_depth,
+    )
+
+    source_depth = torch.where(
+      bleed_mask,
+      torch.minimum(source_depth, local_close_depth),
+      source_depth,
+    )
+
+  return bled_depth
+
+
 def depth_camera_sparse_terrain_chw_data(
   env: ManagerBasedRlEnv,
   sensor_name: str = "head_camera",
   min_depth: float = 0.1,
   max_depth: float = 10.0,
   depth_noise_scale: float = 0.1,
+  close_depth_bleed_radius: int = 0,
+  close_depth_bleed_prob: float = 0.0,
+  close_depth_bleed_max_depth: float = 2.0,
 ) -> torch.Tensor:
-  """Depth preprocessing with depth-proportional multiplicative noise.
+  """Depth preprocessing with multiplicative and close-object pixel noise.
 
   Keeps depth in metric units after sanitization/clamping and applies
   multiplicative noise with per-pixel amplitude
-  ``depth_noise_scale * depth``.
+  ``depth_noise_scale * depth``. Optionally, close pixels randomly bleed into
+  nearby farther pixels to mimic nearby geometry corrupting adjacent depth
+  readings.
   """
   depth = depth_camera_chw_data(env=env, sensor_name=sensor_name).to(torch.float32)
 
   # Replace invalid values and bound the physical sensing range.
   depth = torch.nan_to_num(depth, nan=max_depth, posinf=max_depth, neginf=min_depth)
   depth = depth.clamp(min=min_depth, max=max_depth)
+
+  depth = _apply_close_depth_bleed(
+    depth,
+    min_depth=min_depth,
+    close_depth_bleed_radius=close_depth_bleed_radius,
+    close_depth_bleed_prob=close_depth_bleed_prob,
+    close_depth_bleed_max_depth=close_depth_bleed_max_depth,
+  )
 
   if depth_noise_scale > 0.0:
     # Uniform multiplicative noise in [-scale, +scale] relative to each pixel depth.

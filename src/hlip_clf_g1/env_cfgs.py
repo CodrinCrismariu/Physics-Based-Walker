@@ -165,12 +165,14 @@ def _make_play_mode_depth_deterministic(cfg: ManagerBasedRlEnvCfg) -> None:
   if "head_camera_depth" not in cfg.observations:
     return
 
-  depth_group = cfg.observations["head_camera_depth"]
-  depth_group.enable_corruption = False
+  # depth_group = cfg.observations["head_camera_depth"]
+  # depth_group.enable_corruption = False
 
-  depth_term = depth_group.terms.get("depth")
-  if depth_term is not None and depth_term.params is not None:
-    depth_term.params["depth_noise_scale"] = 0.0
+  # depth_term = depth_group.terms.get("depth")
+  # if depth_term is not None and depth_term.params is not None:
+  #   depth_term.params["depth_noise_scale"] = 0.0
+  #   depth_term.params["close_depth_bleed_radius"] = 0
+  #   depth_term.params["close_depth_bleed_prob"] = 0.0
 
 
 def _configure_generated_terrain(
@@ -487,8 +489,8 @@ TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG = TerrainGeneratorCfg(
   sub_terrains={
     "two_platform_corridor": TwoPlatformSteppingCorridorTerrainCfg(
       proportion=1.0,
-      platform_height=0.1,
-      floor_depth=0.2,
+      platform_height=0.2,
+      floor_depth=0.1,
       border_width=0.2,
       platform_length_ratio=0.18,
       platform_width_ratio=0.85,
@@ -496,13 +498,13 @@ TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG = TerrainGeneratorCfg(
       corridor_width_ratio=0.4,
       stone_length_range=(0.3, 0.35),#(0.29, 0.35),
       stone_width_range=(0.3, 0.35),#(0.29, 0.35),
-      stone_gap_range=(0.15, 0.35),
+      stone_gap_range=(0.0, 0.35),
       stone_height_variation=0.04,
-      stone_size_variation=0.06,
-      lateral_displacement_range=0.12,
+      stone_size_variation=0.04,
+      lateral_displacement_range=0.10,
       zigzag_offset_range=(0.1, 0.21),
       pair_probability=0.35,
-      pair_lateral_spacing_range=(0.35, 0.6),
+      pair_lateral_spacing_range=(0.30, 0.55),
       pair_width_scale_range=(0.72, 0.92),
       split_pair_probability=0.7,
       split_pair_center_jitter=0.05,

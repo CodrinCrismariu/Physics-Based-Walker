@@ -65,7 +65,7 @@ def _make_hlip_command_cfg(
     mpc_abs_y_max=0.6,
     mpc_signed_y_min=0.02,
     mpc_max_step_length=0.85,
-    mpc_edge_clearance_distance=0.07,
+    mpc_edge_clearance_distance=0.1,
     mpc_edge_distance_cost=100.0,
     mpc_max_stance_height_delta=0.1,
     mpc_fallback_scales=(1.0, 0.8, 0.6, 0.4, 0.2, 0.0),
@@ -493,6 +493,9 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "sensor_name": "head_camera",
         "depth_noise_scale": 0.1,
+        "close_depth_bleed_radius": 4,
+        "close_depth_bleed_prob": 0.55,
+        "close_depth_bleed_max_depth": 2.5,
       },
       clip=(0.0, 10.0),
       delay_hold_prob=1,
@@ -506,7 +509,7 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       terms=student_vec_terms,
       concatenate_terms=True,
       enable_corruption=True,
-      history_length=1,
+      history_length=5,
     ),
     "head_camera_depth": ObservationGroupCfg(
       terms=head_depth_terms,

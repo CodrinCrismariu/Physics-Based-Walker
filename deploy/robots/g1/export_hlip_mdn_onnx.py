@@ -6,7 +6,7 @@ Usage (from repo root):
         --checkpoint logs/rsl_rl/g1_hlip_clf_distillation_mdn/2026-04-24_00-38-58/model_1370.pt
 
 The exported ONNX has two named inputs:
-    student_vec        [1, 96]        float32
+    student_vec        [1, 480]       float32  (96 raw × 5 history)
     head_camera_depth  [1, 1, 24, 32] float32
 and one output:
     actions            [1, 29]        float32  (MDN top-mode mean)
@@ -31,7 +31,7 @@ from hlip_clf_g1.rl_cfg import _make_student_mdn_model_cfg, _depth_cnn_cfg
 # ── Constants ────────────────────────────────────────────────────────────────
 DEPTH_WIDTH  = 32
 DEPTH_HEIGHT = 24
-VEC_DIM      = 96
+VEC_DIM      = 480   # 96 raw obs * 5 history frames (history_length=5)
 ACTION_DIM   = 29
 
 OBS_GROUPS = {"student": ("student_vec", "head_camera_depth")}
@@ -98,7 +98,7 @@ class ONNXWrapper(nn.Module):
 
     def forward(
         self,
-        student_vec: torch.Tensor,       # [B, 96]
+        student_vec: torch.Tensor,       # [B, 480]
         head_camera_depth: torch.Tensor, # [B, 1, 24, 32]
     ) -> torch.Tensor:                   # [B, 29]
         m = self.model

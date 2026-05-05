@@ -1,4 +1,5 @@
 from mjlab.tasks.registry import register_mjlab_task
+from hlip_clf_g1.viewer_depth_overlay import install_viser_depth_observation_overlay
 from hlip_clf_g1.rl import (
   HLIPOnPolicyRunner,
   HLIPDistilledOnPolicyRunner,
@@ -21,6 +22,8 @@ from hlip_clf_g1.rl_cfg import (
   unitree_g1_hlip_distillation_runner_cfg,
   unitree_g1_hlip_distillation_mdn_runner_cfg,
 )
+
+install_viser_depth_observation_overlay()
 
 register_mjlab_task(
   task_id="Mjlab-HLIP-CLF-Unitree-G1",

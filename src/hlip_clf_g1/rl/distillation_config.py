@@ -94,6 +94,14 @@ class RslRlDistillationAlgorithmCfg:
   """The optimizer to use for the student policy."""
   loss_type: Literal["mse", "huber"] = "huber"
   """The loss type to use for the student policy."""
+  mdn_loss_type: Literal["action_nll", "teacher_distribution"] = "action_nll"
+  """MDN objective: fit stored teacher actions or the teacher action distribution."""
+  mdn_teacher_num_samples: int = 1
+  """Number of PPO teacher distribution samples used for MDN distribution matching."""
+  mdn_teacher_std_scale: float = 1.0
+  """Scale applied to PPO teacher std before MDN distribution matching."""
+  mdn_teacher_sample_std_floor: float = 1.0e-6
+  """Minimum std used when sampling the PPO teacher distribution."""
   mdn_entropy_coef: float = 0.0
   """Optional entropy regularization coefficient for MDN distillation."""
 

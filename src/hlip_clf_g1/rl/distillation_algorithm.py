@@ -7,21 +7,99 @@ from rsl_rl.algorithms import Distillation
 
 
 class DistillationMDN(Distillation):
-	"""MDN distillation variant using negative log-likelihood behavior loss.
+	"""MDN distillation variant with action or teacher-distribution losses.
 
 	This class is additive and does not modify upstream Distillation behavior for
 	existing tasks. It expects the student model to implement ``mdn_nll`` and
-	optionally ``mdn_entropy``.
+	``mdn_log_prob`` and optionally ``mdn_entropy``.
 	"""
 
-	def __init__(self, *args, mdn_entropy_coef: float = 0.0, **kwargs) -> None:
+	def __init__(
+		self,
+		*args,
+		mdn_loss_type: str = "action_nll",
+		mdn_teacher_num_samples: int = 1,
+		mdn_teacher_std_scale: float = 1.0,
+		mdn_teacher_sample_std_floor: float = 1.0e-6,
+		mdn_entropy_coef: float = 0.0,
+		**kwargs,
+	) -> None:
 		super().__init__(*args, **kwargs)
+		if mdn_loss_type not in ("action_nll", "teacher_distribution"):
+			raise ValueError(
+				"mdn_loss_type must be one of {'action_nll', 'teacher_distribution'}."
+			)
+		if mdn_teacher_num_samples <= 0:
+			raise ValueError("mdn_teacher_num_samples must be > 0.")
+		if mdn_teacher_std_scale < 0.0:
+			raise ValueError("mdn_teacher_std_scale must be >= 0.")
+		if mdn_teacher_sample_std_floor < 0.0:
+			raise ValueError("mdn_teacher_sample_std_floor must be >= 0.")
+
+		self.mdn_loss_type = mdn_loss_type
+		self.mdn_teacher_num_samples = int(mdn_teacher_num_samples)
+		self.mdn_teacher_std_scale = float(mdn_teacher_std_scale)
+		self.mdn_teacher_sample_std_floor = float(mdn_teacher_sample_std_floor)
 		self.mdn_entropy_coef = float(mdn_entropy_coef)
+
+	def _sample_teacher_distribution(
+		self,
+		obs,
+	) -> tuple[torch.Tensor, torch.Tensor]:
+		if not getattr(self.teacher, "stochastic", False):
+			raise TypeError(
+				"MDN teacher-distribution matching requires a stochastic teacher model."
+			)
+
+		with torch.no_grad():
+			self.teacher(obs, stochastic_output=True)
+			teacher_mean = self.teacher.output_mean.detach()
+			teacher_std = self.teacher.output_std.detach() * self.mdn_teacher_std_scale
+			if self.mdn_teacher_sample_std_floor > 0.0:
+				teacher_std = torch.clamp(
+					teacher_std,
+					min=self.mdn_teacher_sample_std_floor,
+				)
+
+			eps = torch.randn(
+				(self.mdn_teacher_num_samples, *teacher_mean.shape),
+				device=teacher_mean.device,
+				dtype=teacher_mean.dtype,
+			)
+			teacher_actions = (
+				teacher_mean.unsqueeze(0) + teacher_std.unsqueeze(0) * eps
+			)
+
+		return teacher_actions, teacher_std
+
+	def _compute_behavior_loss(
+		self,
+		obs,
+		privileged_actions: torch.Tensor,
+	) -> tuple[torch.Tensor, float | None]:
+		if self.mdn_loss_type == "teacher_distribution":
+			if not hasattr(self.student, "mdn_log_prob"):
+				raise TypeError(
+					"MDN teacher-distribution matching requires student.mdn_log_prob(obs, actions, ...)."
+				)
+			teacher_actions, teacher_std = self._sample_teacher_distribution(obs)
+			return (
+				-self.student.mdn_log_prob(obs, teacher_actions).mean(),
+				teacher_std.mean().item(),
+			)
+
+		if not hasattr(self.student, "mdn_nll"):
+			raise TypeError(
+				"MDN action NLL requires a student model exposing mdn_nll(obs, actions, ...)."
+			)
+		return self.student.mdn_nll(obs, privileged_actions, reduction="mean"), None
 
 	def update(self) -> dict[str, float]:
 		self.num_updates += 1
 		mean_behavior_loss = 0.0
 		mean_entropy = 0.0
+		mean_teacher_std = 0.0
+		teacher_std_cnt = 0
 		loss = torch.tensor(0.0, device=self.device)
 		cnt = 0
 
@@ -31,12 +109,10 @@ class DistillationMDN(Distillation):
 			self.student.detach_hidden_state()
 
 			for obs, _, privileged_actions, dones in self.storage.generator():
-				if not hasattr(self.student, "mdn_nll"):
-					raise TypeError(
-						"DistillationMDN requires a student model exposing mdn_nll(obs, actions, ...)."
-					)
-
-				behavior_loss = self.student.mdn_nll(obs, privileged_actions, reduction="mean")
+				behavior_loss, teacher_std = self._compute_behavior_loss(obs, privileged_actions)
+				if teacher_std is not None:
+					mean_teacher_std += teacher_std
+					teacher_std_cnt += 1
 
 				total_loss = behavior_loss
 				if self.mdn_entropy_coef != 0.0 and hasattr(self.student, "mdn_entropy"):
@@ -69,6 +145,8 @@ class DistillationMDN(Distillation):
 		self.student.detach_hidden_state()
 
 		loss_dict = {"behavior": mean_behavior_loss}
+		if self.mdn_loss_type == "teacher_distribution" and teacher_std_cnt > 0:
+			loss_dict["teacher_std"] = mean_teacher_std / teacher_std_cnt
 		if self.mdn_entropy_coef != 0.0 and cnt > 0:
 			loss_dict["mdn_entropy"] = mean_entropy / cnt
 

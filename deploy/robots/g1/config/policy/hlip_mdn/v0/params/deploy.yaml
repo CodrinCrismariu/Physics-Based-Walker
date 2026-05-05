@@ -1,25 +1,29 @@
 # =============================================================================
 # deploy.yaml — CNNTransformerMDN distillation student policy
 #
-# Student observation layout (student_vec group, 96-d total):
-#   [0:3]   base_ang_vel          (imu angular velocity, scale 1.0)
-#   [3:6]   projected_gravity     (scale 1.0)
-#   [6:9]   velocity_commands     (vx, vy, yaw_rate) * scale 2.0  [FULL 3D cmd]
-#   [9:38]  joint_pos             (29 joints, relative to default, scale 1.0)
-#   [38:67] joint_vel             (29 joints, scale 0.05)
-#   [67:96] last_action           (29 joints, UNSCALED policy output, scale 1.0)
+# Student observation layout (student_vec group, 480-d total):
+#   history_length=5, flatten_history_dim=True, term-major ordering.
+#   Each term's 5 history frames (oldest→newest) are contiguous, then
+#   concatenated across all 6 terms:
+#
+#   [0:15]    base_ang_vel        3 × 5 = 15  (scale 1.0)
+#   [15:30]   projected_gravity   3 × 5 = 15  (scale 1.0)
+#   [30:45]   velocity_commands   3 × 5 = 15  (scale 2.0 per component)
+#   [45:190]  joint_pos           29 × 5 = 145 (relative to default, scale 1.0)
+#   [190:335] joint_vel           29 × 5 = 145 (scale 0.05)
+#   [335:480] last_action         29 × 5 = 145 (raw network output, scale 1.0)
 #
 # Action: JointPositionActionCfg with G1_ACTION_SCALE (per-joint) + default offset.
 #   target = default_joint_pos + scale[i] * action[i]
 #   Upper body (waist, arms) scale=0 → stays at default.
 #   Waist pitch/roll additionally receive IMU upright compensation.
 #
-# Depth observation (head_camera_depth group):
+# Depth observation (head_camera_depth group, no history):
 #   Shape [1, 24, 32] — received via DDS topic "rt/body_depth_camera"
 #   Preprocessed: clamped to [0.1, 10.0] m.
 #
-# ONNX inputs:  student_vec [1,96]  |  head_camera_depth [1,1,24,32]
-# ONNX output:  actions     [1,29]  (MDN top-mode mean, deterministic)
+# ONNX inputs:  student_vec [1,480]  |  head_camera_depth [1,1,24,32]
+# ONNX output:  actions     [1,29]   (MDN top-mode mean, deterministic)
 # =============================================================================
 
 joint_ids_map: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28]
@@ -105,46 +109,47 @@ actions:
 # Observations — two groups matching distillation student inputs
 # ---------------------------------------------------------------------------
 observations:
-  # ── 1. Vector group (student_vec, 96-d) ──────────────────────────────
+  # ── 1. Vector group (student_vec, 480-d = 96 raw × 5 history) ─────────
+  # History is handled in C++ (State_HLIPMdn.cpp), NOT by the framework
+  # observation manager.  The deploy.yaml terms below are stubs for the
+  # framework’s parser; the actual obs are built by build_student_vec().
   student_vec:
     base_ang_vel:
       params: {}
       clip: null
       scale: [1.0, 1.0, 1.0]
-      history_length: 1
+      history_length: 5
     projected_gravity:
       params: {}
       clip: null
       scale: [1.0, 1.0, 1.0]
-      history_length: 1
+      history_length: 5
     velocity_commands:
       params: {}
       clip: null
-      # Full 3D command [vx, vy, yaw_rate] * 2.0 — matches training:
-      # ObservationTermCfg(func=mdp.hlip_velocity_command, scale=(2.0,2.0,2.0))
       scale: [2.0, 2.0, 2.0]
-      history_length: 1
+      history_length: 5
     joint_pos_rel:
       params: {}
       clip: null
       scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
               1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
               1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-      history_length: 1
+      history_length: 5
     joint_vel_rel:
       params: {}
       clip: null
       scale: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
               0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
               0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
-      history_length: 1
+      history_length: 5
     last_action:
       params: {}
       clip: null
       scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
               1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
               1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
-      history_length: 1
+      history_length: 5
 
   # ── 2. Depth image group (head_camera_depth) ─────────────────────────
   # Received via DDS "rt/body_depth_camera" (32×24 float32 row-major, metres).

@@ -17,6 +17,8 @@
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <iomanip>
+#include <sstream>
 
 // =============================================================================
 // Stub observations
@@ -76,6 +78,12 @@ void State_HLIPMdn::enter()
         depth_last_ts_  = 0;
         depth_buf_.fill(DEPTH_MAX);
     }
+    // Clear observation history buffers.
+    for (int t = 0; t < NUM_TERMS; ++t)
+        obs_history_[t].clear();
+
+    // ── 0. Initialize per-run logging ─────────────────────────────────────────
+    init_logging();
 
     // ── 1. Start depth reader and wait for first frame ────────────────────────
     spdlog::info("[HLIPMdn] Starting depth subscriber on '{}'...", DEPTH_TOPIC);
@@ -127,11 +135,22 @@ void State_HLIPMdn::enter()
     policy_thread_running_ = true;
     policy_thread_ = std::thread([this] {
         using clock = std::chrono::high_resolution_clock;
+        const double step_dt_s = env_->step_dt;           // should be 0.02
         const auto dt = std::chrono::duration_cast<clock::duration>(
-            std::chrono::duration<double>(env_->step_dt));
+            std::chrono::duration<double>(step_dt_s));
+
+        spdlog::info("[HLIPMdn] Policy thread started — step_dt={:.4f}s ({:.1f} Hz target)",
+                     step_dt_s, 1.0 / step_dt_s);
+
         auto sleep_till = clock::now() + dt;
 
+        // Hz tracking
+        hz_step_count_ = 0;
+        hz_window_start_ = clock::now();
+
         while (policy_thread_running_) {
+            auto step_start = clock::now();
+
             env_->robot->update();
 
             std::unordered_map<std::string, std::vector<float>> obs_map;
@@ -146,11 +165,38 @@ void State_HLIPMdn::enter()
                 last_raw_action_ = raw_action;
             }
 
+            // Log all network inputs + action
+            log_step(obs_map["student_vec"], obs_map["head_camera_depth"], raw_action);
+
             env_->action_manager->process_action(raw_action);
             env_->episode_length += 1;
 
+            // Hz monitoring — report every 50 steps (~1 second)
+            hz_step_count_++;
+            if (hz_step_count_ >= 50) {
+                auto now = clock::now();
+                double elapsed = std::chrono::duration<double>(now - hz_window_start_).count();
+                double hz = hz_step_count_ / elapsed;
+                double step_ms = std::chrono::duration<double, std::milli>(
+                    now - step_start).count();
+                spdlog::info("[HLIPMdn] Policy rate: {:.1f} Hz  (target {:.0f} Hz, "
+                             "last step {:.2f}ms, budget {:.1f}ms)",
+                             hz, 1.0 / step_dt_s, step_ms, step_dt_s * 1000.0);
+                hz_step_count_ = 0;
+                hz_window_start_ = now;
+            }
+
+            // Sleep until next scheduled tick
             std::this_thread::sleep_until(sleep_till);
             sleep_till += dt;
+
+            // Drift guard: if we're more than 2 steps behind schedule,
+            // reset to avoid burst catch-up (drop missed ticks instead).
+            auto now = clock::now();
+            if (now > sleep_till + dt) {
+                spdlog::warn("[HLIPMdn] Timing drift detected — resetting schedule");
+                sleep_till = now + dt;
+            }
         }
     });
 }
@@ -189,7 +235,7 @@ void State_HLIPMdn::run()
 // Observation helpers
 // =============================================================================
 
-std::vector<float> State_HLIPMdn::build_student_vec()
+std::vector<float> State_HLIPMdn::build_raw_obs_frame()
 {
     using G1 = unitree::BaseArticulation<LowState_t::SharedPtr>;
     G1* robot = dynamic_cast<G1*>(env_->robot.get());
@@ -199,14 +245,12 @@ std::vector<float> State_HLIPMdn::build_student_vec()
     const int N = (int)data.joint_ids_map.size(); // 29
 
     std::vector<float> obs;
-    obs.reserve(96);
+    obs.reserve(RAW_VEC_DIM);
 
     // [0:3] base_ang_vel — IMU gyroscope (rad/s), scale 1.0
     for (int i = 0; i < 3; ++i) obs.push_back(imu.gyroscope()[i]);
 
     // [3:6] projected_gravity — gravity vector expressed in robot base frame
-    // g_base = R_base_world^T * [0, 0, -1]
-    // IMU quaternion convention: (w, x, y, z)
     {
         const auto& q = imu.quaternion();
         Eigen::Quaternionf quat(q[0], q[1], q[2], q[3]);
@@ -216,27 +260,24 @@ std::vector<float> State_HLIPMdn::build_student_vec()
     }
 
     // [6:9] velocity_commands: [vx, 0, 0] * 2.0
-    // vx = joy.ly() * 0.5, vy = 0, yaw = 0.
-    // Scaled x2: ObservationTermCfg(scale=(2.0, 2.0, 2.0)).
     {
-        constexpr float VX_MAX = 0.5f;
-        const float vx = FSMState::lowstate->joystick.ly() * VX_MAX;
-        obs.push_back(vx * 2.0f);  // vx in [-1, 1]
-        obs.push_back(0.0f);        // vy = 0
-        obs.push_back(0.0f);        // yaw_rate = 0
+        constexpr float VX_MAX = 0.5f;  // capped below training max (0.6) for safety
+        float vx = FSMState::lowstate->joystick.ly() * VX_MAX;
+        vx = std::clamp(vx, -0.1f, 0.5f);
+        obs.push_back(vx * 2.0f);
+        obs.push_back(0.0f);
+        obs.push_back(0.0f);
     }
 
     // [9:38] joint_pos — q - default_joint_pos, scale 1.0
     for (int i = 0; i < N; ++i)
         obs.push_back(motors[(int)data.joint_ids_map[i]].q() - data.default_joint_pos[i]);
 
-    // [38:67] joint_vel — dq * 0.05, scale 0.05
+    // [38:67] joint_vel — dq * 0.05
     for (int i = 0; i < N; ++i)
         obs.push_back(motors[(int)data.joint_ids_map[i]].dq() * 0.05f);
 
-    // [67:96] last_action — RAW network output (before scale/offset), scale 1.0
-    // Training: ObservationTermCfg(func=mdp.last_action)
-    // mdp.last_action returns the raw policy output stored before apply_actions().
+    // [67:96] last_action — raw network output (before scale/offset), scale 1.0
     {
         std::lock_guard<std::mutex> lk(last_action_mutex_);
         for (int i = 0; i < N; ++i)
@@ -244,6 +285,47 @@ std::vector<float> State_HLIPMdn::build_student_vec()
     }
 
     return obs;
+}
+
+std::vector<float> State_HLIPMdn::build_student_vec()
+{
+    // 1. Get current raw 96-d frame.
+    auto raw = build_raw_obs_frame();
+
+    // 2. Split into per-term slices and push into history deques.
+    //    Mirrors simulation CircularBuffer(max_len=5).append() per term.
+    int offset = 0;
+    for (int t = 0; t < NUM_TERMS; ++t) {
+        int dim = TERM_DIMS[t];
+        std::vector<float> term_obs(raw.begin() + offset, raw.begin() + offset + dim);
+        offset += dim;
+
+        auto& hist = obs_history_[t];
+        if (hist.empty()) {
+            // Backfill: simulation fills all slots with the first observation
+            // (CircularBuffer.append with num_pushes==0 backfills all slots).
+            for (int h = 0; h < OBS_HISTORY_LENGTH; ++h)
+                hist.push_back(term_obs);
+        } else {
+            hist.push_back(term_obs);
+            if ((int)hist.size() > OBS_HISTORY_LENGTH)
+                hist.pop_front();
+        }
+    }
+
+    // 3. Flatten with term-major ordering (matches flatten_history_dim=True):
+    //    [term0_t0, term0_t1, ..., term0_t4, term1_t0, ..., term1_t4, ...]
+    //    where t0=oldest, t4=newest.
+    std::vector<float> out;
+    out.reserve(HIST_VEC_DIM);
+    for (int t = 0; t < NUM_TERMS; ++t) {
+        for (int h = 0; h < OBS_HISTORY_LENGTH; ++h) {
+            const auto& frame = obs_history_[t][h];
+            out.insert(out.end(), frame.begin(), frame.end());
+        }
+    }
+
+    return out;
 }
 
 
@@ -343,4 +425,85 @@ void State_HLIPMdn::stop_depth_reader()
 {
     depth_running_ = false;
     if (depth_thread_.joinable()) depth_thread_.join();
+}
+
+// =============================================================================
+// Logging
+// =============================================================================
+
+void State_HLIPMdn::init_logging()
+{
+    namespace fs = std::filesystem;
+
+    // Close any previous log file
+    if (log_obs_file_.is_open()) log_obs_file_.close();
+    log_step_ = 0;
+
+    // Create timestamped run directory: deploy/robots/g1/logs/hlip_mdn_YYYYMMDD_HHMMSS/
+    auto now = std::chrono::system_clock::now();
+    auto t   = std::chrono::system_clock::to_time_t(now);
+    std::tm tm{};
+    localtime_r(&t, &tm);
+    std::ostringstream ts;
+    ts << std::put_time(&tm, "%Y%m%d_%H%M%S");
+
+    // Place logs next to the executable's config directory
+    fs::path base_log_dir = fs::path("logs");
+    log_run_dir_   = base_log_dir / ("hlip_mdn_" + ts.str());
+    log_depth_dir_ = log_run_dir_ / "depth";
+
+    fs::create_directories(log_depth_dir_);
+
+    // Open JSONL observation log
+    auto obs_log_path = log_run_dir_ / "observations.jsonl";
+    log_obs_file_.open(obs_log_path, std::ios::out | std::ios::trunc);
+
+    if (log_obs_file_.is_open()) {
+        spdlog::info("[HLIPMdn] Logging to: {}", log_run_dir_.string());
+    } else {
+        spdlog::error("[HLIPMdn] Failed to open log file: {}", obs_log_path.string());
+    }
+}
+
+void State_HLIPMdn::log_step(
+    const std::vector<float>& student_vec,
+    const std::vector<float>& depth_obs,
+    const std::vector<float>& raw_action)
+{
+    // ── 1. Write vector observation + action as JSON line ─────────────────────
+    if (log_obs_file_.is_open()) {
+        auto now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+
+        log_obs_file_ << "{\"step\":" << log_step_
+                      << ",\"timestamp_us\":" << now_us
+                      << ",\"student_vec\":[";
+        for (size_t i = 0; i < student_vec.size(); ++i) {
+            if (i > 0) log_obs_file_ << ',';
+            log_obs_file_ << student_vec[i];
+        }
+        log_obs_file_ << "],\"raw_action\":[";
+        for (size_t i = 0; i < raw_action.size(); ++i) {
+            if (i > 0) log_obs_file_ << ',';
+            log_obs_file_ << raw_action[i];
+        }
+        log_obs_file_ << "]}\n";
+
+        // Flush periodically (every 50 steps) to avoid loss on crash
+        if (log_step_ % 50 == 0) log_obs_file_.flush();
+    }
+
+    // ── 2. Save depth frame as raw binary float32 ────────────────────────────
+    {
+        std::ostringstream fname;
+        fname << "depth_" << std::setfill('0') << std::setw(6) << log_step_ << ".bin";
+        auto depth_path = log_depth_dir_ / fname.str();
+        std::ofstream df(depth_path, std::ios::binary);
+        if (df.is_open()) {
+            df.write(reinterpret_cast<const char*>(depth_obs.data()),
+                     depth_obs.size() * sizeof(float));
+        }
+    }
+
+    log_step_++;
 }
