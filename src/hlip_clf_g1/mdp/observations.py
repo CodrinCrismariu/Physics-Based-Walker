@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 
 _DEFAULT_ASSET_CFG = SceneEntityCfg("robot")
+_DEPTH_CAMERA_EPISODE_NOISE_LEVELS: dict[tuple[int, str], torch.Tensor] = {}
 
 
 def _prime_hlip_command_if_pending(cmd) -> None:
@@ -301,6 +302,7 @@ def _apply_close_depth_bleed(
   close_depth_bleed_radius: int,
   close_depth_bleed_prob: float,
   close_depth_bleed_max_depth: float,
+  close_depth_bleed_level: float | torch.Tensor = 1.0,
 ) -> torch.Tensor:
   """Randomly propagate close depth pixels into nearby farther pixels.
 
@@ -310,8 +312,17 @@ def _apply_close_depth_bleed(
   closest pixels corrupt the widest neighborhood.
   """
   max_radius = int(close_depth_bleed_radius)
-  bleed_prob = float(close_depth_bleed_prob)
-  if max_radius <= 0 or bleed_prob <= 0.0:
+  bleed_prob = torch.as_tensor(
+    close_depth_bleed_prob,
+    device=depth.device,
+    dtype=depth.dtype,
+  ).clamp(0.0, 1.0)
+  bleed_level = torch.as_tensor(
+    close_depth_bleed_level,
+    device=depth.device,
+    dtype=depth.dtype,
+  ).clamp(0.0, 1.0)
+  if max_radius <= 0 or not bool(torch.any((bleed_prob * bleed_level) > 0.0).item()):
     return depth
 
   def _close_weight(local_close_depth: torch.Tensor) -> torch.Tensor:
@@ -340,13 +351,13 @@ def _apply_close_depth_bleed(
 
     close_weight = _close_weight(local_close_depth)
     radius_threshold = (radius - 0.5) / max_radius
-    can_reach = close_weight >= radius_threshold
+    can_reach = (close_weight * bleed_level) >= radius_threshold
     can_bleed = can_reach & (local_close_depth < depth)
 
-    per_pixel_prob = min(max(bleed_prob, 0.0), 1.0) * close_weight
+    per_pixel_prob = bleed_prob * bleed_level * close_weight
     bleed_mask = (torch.rand_like(depth) < per_pixel_prob) & can_bleed
     candidate_depth = torch.where(can_bleed, local_close_depth, depth)
-    bleed_strength = torch.rand_like(depth) * (0.5 + 0.5 * close_weight)
+    bleed_strength = torch.rand_like(depth) * bleed_level * (0.5 + 0.5 * close_weight)
     bled_depth = torch.where(
       bleed_mask,
       torch.lerp(depth, candidate_depth, bleed_strength),
@@ -362,6 +373,48 @@ def _apply_close_depth_bleed(
   return bled_depth
 
 
+def _get_depth_camera_episode_noise_level(
+  env: ManagerBasedRlEnv,
+  sensor_name: str,
+  depth: torch.Tensor,
+  randomize_depth_noise_per_episode: bool,
+) -> torch.Tensor:
+  """Return per-env depth corruption multiplier sampled at episode reset."""
+  shape = (depth.shape[0], 1, 1, 1)
+  if not randomize_depth_noise_per_episode:
+    return torch.ones(shape, device=depth.device, dtype=depth.dtype)
+
+  key = (id(env), sensor_name)
+  noise_level = _DEPTH_CAMERA_EPISODE_NOISE_LEVELS.get(key)
+  if (
+    noise_level is None
+    or noise_level.shape != shape
+    or noise_level.device != depth.device
+    or noise_level.dtype != depth.dtype
+  ):
+    noise_level = torch.rand(shape, device=depth.device, dtype=depth.dtype)
+    _DEPTH_CAMERA_EPISODE_NOISE_LEVELS[key] = noise_level
+
+  return noise_level
+
+
+def _reset_depth_camera_episode_noise(env_ids: torch.Tensor | slice | None = None) -> None:
+  """Resample depth corruption multipliers for reset environments."""
+  for noise_level in _DEPTH_CAMERA_EPISODE_NOISE_LEVELS.values():
+    if env_ids is None or isinstance(env_ids, slice):
+      noise_level.uniform_(0.0, 1.0)
+      continue
+
+    reset_ids = env_ids.to(device=noise_level.device, dtype=torch.long)
+    reset_ids = reset_ids[(reset_ids >= 0) & (reset_ids < noise_level.shape[0])]
+    if reset_ids.numel() > 0:
+      noise_level[reset_ids] = torch.rand(
+        (reset_ids.numel(), *noise_level.shape[1:]),
+        device=noise_level.device,
+        dtype=noise_level.dtype,
+      )
+
+
 def depth_camera_sparse_terrain_chw_data(
   env: ManagerBasedRlEnv,
   sensor_name: str = "head_camera",
@@ -371,16 +424,24 @@ def depth_camera_sparse_terrain_chw_data(
   close_depth_bleed_radius: int = 0,
   close_depth_bleed_prob: float = 0.0,
   close_depth_bleed_max_depth: float = 2.0,
+  randomize_depth_noise_per_episode: bool = False,
 ) -> torch.Tensor:
   """Depth preprocessing with multiplicative and close-object pixel noise.
 
   Keeps depth in metric units after sanitization/clamping and applies
   multiplicative noise with per-pixel amplitude
   ``depth_noise_scale * depth``. Optionally, close pixels randomly bleed into
-  nearby farther pixels to mimic nearby geometry corrupting adjacent depth
-  readings.
+  nearby farther pixels. When enabled, ``randomize_depth_noise_per_episode``
+  samples one multiplier per environment episode in [0, 1] and scales the
+  configured depth noise and bleed strength by it.
   """
   depth = depth_camera_chw_data(env=env, sensor_name=sensor_name).to(torch.float32)
+  episode_noise_level = _get_depth_camera_episode_noise_level(
+    env,
+    sensor_name=sensor_name,
+    depth=depth,
+    randomize_depth_noise_per_episode=randomize_depth_noise_per_episode,
+  )
 
   # Replace invalid values and bound the physical sensing range.
   depth = torch.nan_to_num(depth, nan=max_depth, posinf=max_depth, neginf=min_depth)
@@ -392,12 +453,20 @@ def depth_camera_sparse_terrain_chw_data(
     close_depth_bleed_radius=close_depth_bleed_radius,
     close_depth_bleed_prob=close_depth_bleed_prob,
     close_depth_bleed_max_depth=close_depth_bleed_max_depth,
+    close_depth_bleed_level=episode_noise_level,
   )
 
   if depth_noise_scale > 0.0:
     # Uniform multiplicative noise in [-scale, +scale] relative to each pixel depth.
-    rel_noise = (2.0 * torch.rand_like(depth) - 1.0) * depth_noise_scale
+    rel_noise = (
+      (2.0 * torch.rand_like(depth) - 1.0)
+      * float(depth_noise_scale)
+      * episode_noise_level
+    )
     depth = depth * (1.0 + rel_noise)
     depth = depth.clamp(min=min_depth, max=max_depth)
 
   return depth
+
+
+depth_camera_sparse_terrain_chw_data.reset = _reset_depth_camera_episode_noise

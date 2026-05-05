@@ -6,7 +6,6 @@ from dataclasses import replace
 
 from mjlab.asset_zoo.robots import (
   G1_ACTION_SCALE,
-  get_g1_robot_cfg,
 )
 
 from mjlab.envs import ManagerBasedRlEnvCfg
@@ -28,6 +27,7 @@ from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 from mjlab.terrains import TerrainImporterCfg
 from hlip_clf_g1 import mdp
 from hlip_clf_g1.custom_terrains import TwoPlatformSteppingCorridorTerrainCfg
+from hlip_clf_g1.g1_no_hands import get_g1_no_hands_robot_cfg
 from hlip_clf_g1.hlip_env_cfg import make_hlip_env_cfg, make_hlip_distillation_env_cfg
 
 
@@ -114,7 +114,7 @@ def _make_head_camera_sensor() -> CameraSensorCfg:
     name="head_camera",
     parent_body="robot/torso_link",
     pos=(0.15, 0.0, 0.3),#(0.06, 0.0, 0.45),
-    quat=(0, -0.1986693, 0, 0.9800666),#(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
+    quat=(0, -0.1736483, 0, 0.9848077),#(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
     width=HEAD_CAMERA_WIDTH,
     height=HEAD_CAMERA_HEIGHT,
     fovy=55.2,
@@ -139,9 +139,9 @@ def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
       "asset_cfg": camera_asset_cfg,
       "operation": "add",
       "ranges": {
-        0: (-0.02, 0.02),
-        1: (-0.02, 0.02),
-        2: (-0.02, 0.02),
+        0: (-0.025, 0.025),
+        1: (-0.025, 0.025),
+        2: (-0.025, 0.025),
       },
     },
   )
@@ -334,7 +334,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   cfg = make_hlip_env_cfg()
 
   # ── Scene ──────────────────────────────────────────────────────────
-  robot_cfg = get_g1_robot_cfg()
+  robot_cfg = get_g1_no_hands_robot_cfg()
   _apply_g1_joint_pd_gains(robot_cfg)
   cfg.scene.entities = {"robot": robot_cfg}
 
