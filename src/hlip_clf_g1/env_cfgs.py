@@ -249,7 +249,7 @@ def _make_head_camera_sensor() -> CameraSensorCfg:
     quat=(0, -0.1736483, 0, 0.9848077),#(-0.6927357, -0.1405364, 0.1404245, 0.6932876),#(-0.6589899, -0.255809, 0.2556054, 0.6595149),
     width=HEAD_CAMERA_WIDTH,
     height=HEAD_CAMERA_HEIGHT,
-    fovy=55.2,
+    fovy=58.0,
     data_types=("rgb", "depth"),
   )
 
@@ -260,7 +260,7 @@ def _add_head_camera_sensor(cfg: ManagerBasedRlEnvCfg) -> None:
 
 
 def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
-  """Add startup domain randomization for the head camera extrinsics."""
+  """Add reset-time domain randomization for the head camera."""
   camera_asset_cfg = SceneEntityCfg("robot", camera_names="head_camera")
   angle = math.radians(2.5)
 
@@ -287,12 +287,22 @@ def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
       "yaw_range": (-angle, angle),
     },
   )
+  cfg.events["head_camera_fovy_dr"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.cam_fovy,
+    params={
+      "asset_cfg": camera_asset_cfg,
+      "operation": "add",
+      "ranges": (-3.0, 3.0),
+    },
+  )
 
 
 def _make_play_mode_depth_deterministic(cfg: ManagerBasedRlEnvCfg) -> None:
   """Disable depth/image stochasticity in play mode for deterministic behavior."""
   cfg.events.pop("head_camera_pos_dr", None)
   cfg.events.pop("head_camera_quat_dr", None)
+  cfg.events.pop("head_camera_fovy_dr", None)
 
   if "head_camera_depth" not in cfg.observations:
     return
@@ -593,7 +603,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   if play:
     cfg.commands["hlip"].manual_control = True
     cfg.episode_length_s = int(1e9)
-    cfg.observations["actor"].enable_corruption = False
+    # cfg.observations["actor"].enable_corruption = False
     cfg.events.pop("push_robot", None)
     cfg.events["randomize_terrain"] = EventTermCfg(
       func=mdp.randomize_terrain,
