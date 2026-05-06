@@ -323,7 +323,7 @@ def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
   joint_asset_cfg = SceneEntityCfg("robot")
 
   cfg.events["motor_pd_gains"] = EventTermCfg(
-    mode="startup",
+    mode="reset",
     func=mdp.dr.pd_gains,
     params={
       "asset_cfg": actuator_asset_cfg,
@@ -333,7 +333,7 @@ def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
     },
   )
   cfg.events["motor_effort_limits"] = EventTermCfg(
-    mode="startup",
+    mode="reset",
     func=_g1_effort_limits_with_delayed_actuators,
     params={
       "asset_cfg": actuator_asset_cfg,
@@ -341,7 +341,7 @@ def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
     },
   )
   cfg.events["joint_damping"] = EventTermCfg(
-    mode="startup",
+    mode="reset",
     func=mdp.dr.joint_damping,
     params={
       "asset_cfg": joint_asset_cfg,
@@ -350,7 +350,7 @@ def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
     },
   )
   cfg.events["joint_friction"] = EventTermCfg(
-    mode="startup",
+    mode="reset",
     func=mdp.dr.joint_friction,
     params={
       "asset_cfg": joint_asset_cfg,

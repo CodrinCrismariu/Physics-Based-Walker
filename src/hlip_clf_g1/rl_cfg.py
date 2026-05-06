@@ -240,7 +240,7 @@ def unitree_g1_hlip_distillation_mdn_runner_cfg() -> RslRlDistillationRunnerCfg:
     ),
     algorithm=_make_distillation_mdn_algorithm_cfg(),
     experiment_name="g1_hlip_clf_distillation_mdn",
-    save_interval=10,
+    save_interval=100,
     num_steps_per_env=120,
-    max_iterations=1500,
+    max_iterations=2500,
   )

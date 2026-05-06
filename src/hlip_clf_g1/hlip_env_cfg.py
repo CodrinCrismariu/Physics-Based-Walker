@@ -298,7 +298,7 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       },
     ),
     "body_friction": EventTermCfg(
-      mode="startup",
+      mode="reset",
       func=mdp.dr.geom_friction,
       params={
         "asset_cfg": SceneEntityCfg("robot", geom_names=".*_collision"),
@@ -307,7 +307,7 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       },
     ),
     "encoder_bias": EventTermCfg(
-      mode="startup",
+      mode="reset",
       func=mdp.dr.encoder_bias,
       params={
         "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
@@ -315,7 +315,7 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       },
     ),
     "base_com": EventTermCfg(
-      mode="startup",
+      mode="reset",
       func=mdp.dr.body_ipos,
       params={
         "asset_cfg": SceneEntityCfg("robot", body_names=()),  # Set per-robot.
@@ -530,7 +530,7 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       terms=base_actor_terms,  # Keep privileged actor observations from the base config.
       concatenate_terms=True,
       enable_corruption=False,
-      history_length=1,
+      history_length=5,
     ),
   }
 
