@@ -308,11 +308,11 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
     ),
     "link_mass": EventTermCfg(
       mode="reset",
-      func=mdp.dr.pseudo_inertia,
+      func=mdp.dr.body_mass,
       params={
         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-        # pseudo_inertia scales mass and inertia by exp(2 * alpha).
-        "alpha_range": (0.5 * math.log(0.9), 0.5 * math.log(1.2)),
+        "operation": "scale",
+        "ranges": (0.9, 1.2),
       },
     ),
     "base_mass": EventTermCfg(
