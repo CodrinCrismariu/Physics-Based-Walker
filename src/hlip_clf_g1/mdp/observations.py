@@ -421,19 +421,19 @@ def depth_camera_sparse_terrain_chw_data(
   min_depth: float = 0.1,
   max_depth: float = 10.0,
   depth_noise_scale: float = 0.1,
+  pixel_dropout_prob: float = 0.0,
   close_depth_bleed_radius: int = 0,
   close_depth_bleed_prob: float = 0.0,
   close_depth_bleed_max_depth: float = 2.0,
   randomize_depth_noise_per_episode: bool = False,
 ) -> torch.Tensor:
-  """Depth preprocessing with multiplicative and close-object pixel noise.
+  """Depth preprocessing with Gaussian depth noise and optional pixel dropout.
 
   Keeps depth in metric units after sanitization/clamping and applies
-  multiplicative noise with per-pixel amplitude
-  ``depth_noise_scale * depth``. Optionally, close pixels randomly bleed into
-  nearby farther pixels. When enabled, ``randomize_depth_noise_per_episode``
-  samples one multiplier per environment episode in [0, 1] and scales the
-  configured depth noise and bleed strength by it.
+  Gaussian per-pixel noise with standard deviation
+  ``depth_noise_scale * depth``. ``pixel_dropout_prob`` turns random pixels into
+  max-range returns. The legacy close-depth bleed parameters are retained for
+  old configs, but should be left at zero to avoid edge bleeding.
   """
   depth = depth_camera_chw_data(env=env, sensor_name=sensor_name).to(torch.float32)
   episode_noise_level = _get_depth_camera_episode_noise_level(
@@ -457,14 +457,23 @@ def depth_camera_sparse_terrain_chw_data(
   )
 
   if depth_noise_scale > 0.0:
-    # Uniform multiplicative noise in [-scale, +scale] relative to each pixel depth.
-    rel_noise = (
-      (2.0 * torch.rand_like(depth) - 1.0)
+    noise = (
+      torch.randn_like(depth)
       * float(depth_noise_scale)
+      * depth
       * episode_noise_level
     )
-    depth = depth * (1.0 + rel_noise)
+    depth = depth + noise
     depth = depth.clamp(min=min_depth, max=max_depth)
+
+  if pixel_dropout_prob > 0.0:
+    dropout_prob = torch.as_tensor(
+      pixel_dropout_prob,
+      device=depth.device,
+      dtype=depth.dtype,
+    ).clamp(0.0, 1.0)
+    dropout_mask = torch.rand_like(depth) < dropout_prob
+    depth = torch.where(dropout_mask, torch.full_like(depth, max_depth), depth)
 
   return depth
 

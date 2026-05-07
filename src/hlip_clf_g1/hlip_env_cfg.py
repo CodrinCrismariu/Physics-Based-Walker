@@ -303,7 +303,25 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
       params={
         "asset_cfg": SceneEntityCfg("robot", geom_names=".*_collision"),
         "operation": "abs",
-        "ranges": (0.3, 1.2),
+        "ranges": (0.5, 1.25),
+      },
+    ),
+    "link_mass": EventTermCfg(
+      mode="reset",
+      func=mdp.dr.body_mass,
+      params={
+        "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+        "operation": "scale",
+        "ranges": (0.9, 1.2),
+      },
+    ),
+    "base_mass": EventTermCfg(
+      mode="reset",
+      func=mdp.dr.body_mass,
+      params={
+        "asset_cfg": SceneEntityCfg("robot", body_names=()),  # Set per-robot.
+        "operation": "add",
+        "ranges": (-1.0, 3.0),
       },
     ),
     "encoder_bias": EventTermCfg(
@@ -321,9 +339,9 @@ def make_hlip_env_cfg() -> ManagerBasedRlEnvCfg:
         "asset_cfg": SceneEntityCfg("robot", body_names=()),  # Set per-robot.
         "operation": "add",
         "ranges": {
-          0: (-0.05, 0.05),
+          0: (-0.025, 0.025),
           1: (-0.05, 0.05),
-          2: (-0.01, 0.01),
+          2: (-0.05, 0.05),
         },
       },
     ),
@@ -500,11 +518,8 @@ def make_hlip_distillation_env_cfg() -> ManagerBasedRlEnvCfg:
       func=mdp.depth_camera_sparse_terrain_chw_data,
       params={
         "sensor_name": "head_camera",
-        "depth_noise_scale": 0.15,
-        "close_depth_bleed_radius": 6,
-        "close_depth_bleed_prob": 0.825,
-        "close_depth_bleed_max_depth": 2.5,
-        "randomize_depth_noise_per_episode": True,
+        "depth_noise_scale": 0.1,
+        "pixel_dropout_prob": 0.05,
       },
       clip=(0.0, 10.0),
       delay_hold_prob=1,

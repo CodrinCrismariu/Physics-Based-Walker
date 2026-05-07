@@ -262,7 +262,8 @@ def _add_head_camera_sensor(cfg: ManagerBasedRlEnvCfg) -> None:
 def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
   """Add reset-time domain randomization for the head camera."""
   camera_asset_cfg = SceneEntityCfg("robot", camera_names="head_camera")
-  angle = math.radians(2.5)
+  roll_yaw_angle = math.radians(2.5)
+  pitch_angle = math.radians(3.0)
 
   cfg.events["head_camera_pos_dr"] = EventTermCfg(
     mode="reset",
@@ -282,9 +283,9 @@ def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
     func=mdp.dr.cam_quat,
     params={
       "asset_cfg": camera_asset_cfg,
-      "roll_range": (-angle, angle),
-      "pitch_range": (-angle, angle),
-      "yaw_range": (-angle, angle),
+      "roll_range": (-roll_yaw_angle, roll_yaw_angle),
+      "pitch_range": (-pitch_angle, pitch_angle),
+      "yaw_range": (-roll_yaw_angle, roll_yaw_angle),
     },
   )
   cfg.events["head_camera_fovy_dr"] = EventTermCfg(
@@ -293,7 +294,7 @@ def _add_head_camera_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
     params={
       "asset_cfg": camera_asset_cfg,
       "operation": "add",
-      "ranges": (-3.0, 3.0),
+      "ranges": (-2.0, 2.0),
     },
   )
 
@@ -588,6 +589,7 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   }
 
   # ── Per-robot event config ─────────────────────────────────────────
+  cfg.events["base_mass"].params["asset_cfg"].body_names = ("torso_link",)
   cfg.events["base_com"].params["asset_cfg"].body_names = ("torso_link",)
   _add_g1_hardware_dr_events(cfg)
 
