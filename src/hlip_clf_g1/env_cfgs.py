@@ -308,59 +308,6 @@ def _make_play_mode_depth_deterministic(cfg: ManagerBasedRlEnvCfg) -> None:
   if "head_camera_depth" not in cfg.observations:
     return
 
-  # depth_group = cfg.observations["head_camera_depth"]
-  # depth_group.enable_corruption = False
-
-  # depth_term = depth_group.terms.get("depth")
-  # if depth_term is not None and depth_term.params is not None:
-  #   depth_term.params["depth_noise_scale"] = 0.0
-  #   depth_term.params["close_depth_bleed_radius"] = 0
-  #   depth_term.params["close_depth_bleed_prob"] = 0.0
-
-
-def _add_g1_hardware_dr_events(cfg: ManagerBasedRlEnvCfg) -> None:
-  """Add conservative G1 motor and joint dynamics randomization."""
-  actuator_asset_cfg = SceneEntityCfg("robot")
-  joint_asset_cfg = SceneEntityCfg("robot")
-
-  cfg.events["motor_pd_gains"] = EventTermCfg(
-    mode="reset",
-    func=mdp.dr.pd_gains,
-    params={
-      "asset_cfg": actuator_asset_cfg,
-      "operation": "scale",
-      "kp_range": (0.85, 1.15),
-      "kd_range": (0.75, 1.25),
-    },
-  )
-  cfg.events["motor_effort_limits"] = EventTermCfg(
-    mode="reset",
-    func=_g1_effort_limits_with_delayed_actuators,
-    params={
-      "asset_cfg": actuator_asset_cfg,
-      "effort_limit_range": (0.85, 1.1),
-    },
-  )
-  cfg.events["joint_damping"] = EventTermCfg(
-    mode="reset",
-    func=mdp.dr.joint_damping,
-    params={
-      "asset_cfg": joint_asset_cfg,
-      "operation": "scale",
-      "ranges": (0.75, 1.25),
-    },
-  )
-  cfg.events["joint_friction"] = EventTermCfg(
-    mode="reset",
-    func=mdp.dr.joint_friction,
-    params={
-      "asset_cfg": joint_asset_cfg,
-      "operation": "add",
-      "ranges": (0.0, 0.04),
-    },
-  )
-
-
 def _configure_generated_terrain(
   cfg: ManagerBasedRlEnvCfg,
   terrain_cfg: TerrainGeneratorCfg,
@@ -591,7 +538,6 @@ def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   # ── Per-robot event config ─────────────────────────────────────────
   cfg.events["base_mass"].params["asset_cfg"].body_names = ("torso_link",)
   cfg.events["base_com"].params["asset_cfg"].body_names = ("torso_link",)
-  _add_g1_hardware_dr_events(cfg)
 
   # ── Per-robot reward config ────────────────────────────────────────
   # Self-collision reward.
