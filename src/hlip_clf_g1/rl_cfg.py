@@ -9,6 +9,8 @@ from mjlab.rl import (
 from hlip_clf_g1.rl.distillation_config import (
   RslRlDistillationAlgorithmCfg,
   RslRlDistillationCnnModelCfg,
+  RslRlDistillationCnnMdnModelCfg,
+  RslRlDistillationCnnTransformerModelCfg,
   RslRlDistillationCnnTransformerMdnModelCfg,
   RslRlDistillationModelCfg,
   RslRlDistillationRunnerCfg,
@@ -50,6 +52,39 @@ def _make_student_model_cfg(
     activation="elu",
     stochastic=stochastic,
     cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+  )
+
+
+def _make_student_transformer_model_cfg(
+  *,
+  init_noise_std: float,
+  stochastic: bool,
+) -> RslRlDistillationCnnTransformerModelCfg:
+  return RslRlDistillationCnnTransformerModelCfg(
+    obs_normalization=True,
+    init_noise_std=init_noise_std,
+    hidden_dims=(512, 256, 128),
+    activation="elu",
+    stochastic=stochastic,
+    cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+  )
+
+
+def _make_student_cnn_mdn_model_cfg(
+  *,
+  stochastic: bool,
+) -> RslRlDistillationCnnMdnModelCfg:
+  return RslRlDistillationCnnMdnModelCfg(
+    obs_normalization=True,
+    hidden_dims=(512, 256, 128),
+    activation="elu",
+    stochastic=stochastic,
+    cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+    mdn_num_modes=2,
+    mdn_min_std=1.0e-3,
+    mdn_min_log_std=-3.0,
+    mdn_max_log_std=2.0,
+    mdn_inference_mode="top_mode_mean",
   )
 
 
@@ -240,6 +275,49 @@ def unitree_g1_hlip_distillation_mdn_runner_cfg() -> RslRlDistillationRunnerCfg:
     ),
     algorithm=_make_distillation_mdn_algorithm_cfg(),
     experiment_name="g1_hlip_clf_distillation_mdn",
+    save_interval=100,
+    num_steps_per_env=120,
+    max_iterations=2500,
+  )
+
+
+def unitree_g1_hlip_distillation_cnn_mdn_runner_cfg() -> RslRlDistillationRunnerCfg:
+  """Create no-transformer MDN distillation runner configuration."""
+  return RslRlDistillationRunnerCfg(
+    obs_groups={
+      "student": _DISTILLATION_STUDENT_OBS_GROUPS,
+      "teacher": _DISTILLATION_TEACHER_OBS_GROUPS,
+    },
+    student=_make_student_cnn_mdn_model_cfg(stochastic=True),
+    teacher=_make_teacher_model_cfg(
+      init_noise_std=0.0,
+      stochastic=True,
+    ),
+    algorithm=_make_distillation_mdn_algorithm_cfg(),
+    experiment_name="g1_hlip_clf_distillation_cnn_mdn",
+    save_interval=100,
+    num_steps_per_env=120,
+    max_iterations=2500,
+  )
+
+
+def unitree_g1_hlip_distillation_transformer_mlp_runner_cfg() -> RslRlDistillationRunnerCfg:
+  """Create CNN+Transformer distillation config with a standard MLP head."""
+  return RslRlDistillationRunnerCfg(
+    obs_groups={
+      "student": _DISTILLATION_STUDENT_OBS_GROUPS,
+      "teacher": _DISTILLATION_TEACHER_OBS_GROUPS,
+    },
+    student=_make_student_transformer_model_cfg(
+      init_noise_std=0.0,
+      stochastic=True,
+    ),
+    teacher=_make_teacher_model_cfg(
+      init_noise_std=0.0,
+      stochastic=True,
+    ),
+    algorithm=_make_distillation_algorithm_cfg(),
+    experiment_name="g1_hlip_clf_distillation_transformer_mlp",
     save_interval=100,
     num_steps_per_env=120,
     max_iterations=2500,

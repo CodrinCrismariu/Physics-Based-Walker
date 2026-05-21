@@ -21,6 +21,8 @@ from hlip_clf_g1.rl_cfg import (
   unitree_g1_hlip_corridor_ppo_from_distillation_mdn_runner_cfg,
   unitree_g1_hlip_distillation_runner_cfg,
   unitree_g1_hlip_distillation_mdn_runner_cfg,
+  unitree_g1_hlip_distillation_cnn_mdn_runner_cfg,
+  unitree_g1_hlip_distillation_transformer_mlp_runner_cfg,
 )
 
 install_viser_depth_observation_overlay()
@@ -118,6 +120,22 @@ register_mjlab_task(
   env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(),
   play_env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(play=True),
   rl_cfg=unitree_g1_hlip_distillation_mdn_runner_cfg(),
+  runner_cls=HLIPDistilledOnPolicyRunner,
+)
+
+register_mjlab_task(
+  task_id="Mjlab-HLIP-CLF-Distillation-MDN-No-Transformer-Two-Platform-Stepping-Corridor-Unitree-G1",
+  env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(),
+  play_env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(play=True),
+  rl_cfg=unitree_g1_hlip_distillation_cnn_mdn_runner_cfg(),
+  runner_cls=HLIPDistilledOnPolicyRunner,
+)
+
+register_mjlab_task(
+  task_id="Mjlab-HLIP-CLF-Distillation-Transformer-MLP-Two-Platform-Stepping-Corridor-Unitree-G1",
+  env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(),
+  play_env_cfg=unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg(play=True),
+  rl_cfg=unitree_g1_hlip_distillation_transformer_mlp_runner_cfg(),
   runner_cls=HLIPDistilledOnPolicyRunner,
 )
 

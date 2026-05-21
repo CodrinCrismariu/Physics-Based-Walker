@@ -59,6 +59,24 @@ class RslRlDistillationCnnTransformerModelCfg(RslRlDistillationCnnModelCfg):
 
 
 @dataclass
+class RslRlDistillationCnnMdnModelCfg(RslRlDistillationCnnModelCfg):
+  """Config for CNN student with a Mixture Density head and no transformer."""
+
+  class_name: str = "hlip_clf_g1.rl.models.cnn_mdn_model:CNNMDNModel"
+  """Model class name resolved by rsl_rl."""
+  mdn_num_modes: int = 3
+  """Number of Gaussian mixture components."""
+  mdn_min_std: float = 1.0e-3
+  """Minimum standard deviation clamp applied per action dimension."""
+  mdn_min_log_std: float = -5.0
+  """Lower bound for predicted log standard deviation."""
+  mdn_max_log_std: float = 2.0
+  """Upper bound for predicted log standard deviation."""
+  mdn_inference_mode: Literal["top_mode_mean", "mixture_mean"] = "top_mode_mean"
+  """Deterministic action selection mode for inference/update."""
+
+
+@dataclass
 class RslRlDistillationCnnTransformerMdnModelCfg(RslRlDistillationCnnTransformerModelCfg):
   """Config for CNNTransformer student with a Mixture Density head."""
 
@@ -122,6 +140,7 @@ class RslRlDistillationRunnerCfg(RslRlBaseRunnerCfg):
   student: (
     RslRlDistillationModelCfg
     | RslRlDistillationCnnModelCfg
+    | RslRlDistillationCnnMdnModelCfg
     | RslRlDistillationCnnTransformerModelCfg
     | RslRlDistillationCnnTransformerMdnModelCfg
   ) = field(

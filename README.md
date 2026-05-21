@@ -9,6 +9,12 @@ To play two-platform stepping corridor: uv run play Mjlab-HLIP-CLF-Two-Platform-
 Run Distillation-MDN on two-platform stepping corridor:
 uv run custom_train Mjlab-HLIP-CLF-Distillation-MDN-Two-Platform-Stepping-Corridor-Unitree-G1
 
+Run Distillation-MDN without transformer on two-platform stepping corridor:
+uv run custom_train Mjlab-HLIP-CLF-Distillation-MDN-No-Transformer-Two-Platform-Stepping-Corridor-Unitree-G1
+
+Run Distillation with CNN+Transformer and a standard MLP head on two-platform stepping corridor:
+uv run custom_train Mjlab-HLIP-CLF-Distillation-Transformer-MLP-Two-Platform-Stepping-Corridor-Unitree-G1
+
 Fine-tune Distillation-MDN corridor student with PPO:
 uv run custom_train Mjlab-HLIP-CLF-PPO-Finetune-MDN-Two-Platform-Stepping-Corridor-Unitree-G1 \
   --agent.resume True \
@@ -22,4 +28,3 @@ uv run custom_train Mjlab-HLIP-CLF-Distillation-Stairs-Unitree-G1 \
   --agent.load-run logs/rsl_rl/g1_hlip_clf/2026-03-16_20-12-12/ \
   --student-load-run logs/rsl_rl/g1_hlip_clf_distillation/2026-03-17_11-04-00/model_200.pt \
   --env.scene.num-envs 4096
-

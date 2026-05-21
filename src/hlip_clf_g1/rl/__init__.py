@@ -11,6 +11,7 @@ from hlip_clf_g1.rl.distillation_algorithm import (
 from hlip_clf_g1.rl.distillation_config import (
   RslRlDistillationModelCfg as RslRlDistillationModelCfg,
   RslRlDistillationCnnModelCfg as RslRlDistillationCnnModelCfg,
+  RslRlDistillationCnnMdnModelCfg as RslRlDistillationCnnMdnModelCfg,
   RslRlDistillationCnnTransformerModelCfg as RslRlDistillationCnnTransformerModelCfg,
   RslRlDistillationCnnTransformerMdnModelCfg as RslRlDistillationCnnTransformerMdnModelCfg,
   RslRlDistillationAlgorithmCfg as RslRlDistillationAlgorithmCfg,
