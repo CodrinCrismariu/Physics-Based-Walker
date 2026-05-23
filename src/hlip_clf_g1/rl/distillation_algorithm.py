@@ -6,6 +6,155 @@ import torch.nn as nn
 from rsl_rl.algorithms import Distillation
 
 
+class DistillationNanGuard(Distillation):
+	"""Classic distillation with finite checks around rollout and update."""
+
+	def __init__(
+		self,
+		*args,
+		nan_guard_enabled: bool = True,
+		nan_guard_sanitize_rollout_actions: bool = True,
+		**kwargs,
+	) -> None:
+		super().__init__(*args, **kwargs)
+		self.nan_guard_enabled = bool(nan_guard_enabled)
+		self.nan_guard_sanitize_rollout_actions = bool(nan_guard_sanitize_rollout_actions)
+		self._nan_guard_student_action_replacements = 0
+		self._nan_guard_teacher_action_replacements = 0
+
+	@staticmethod
+	def _tensor_is_finite(tensor: torch.Tensor) -> bool:
+		return bool(torch.isfinite(tensor).all().item())
+
+	@classmethod
+	def _obs_is_finite(cls, obs) -> bool:
+		return all(cls._tensor_is_finite(tensor) for tensor in obs.values())
+
+	@staticmethod
+	def _zero_nonfinite(tensor: torch.Tensor) -> torch.Tensor:
+		return torch.nan_to_num(tensor, nan=0.0, posinf=0.0, neginf=0.0)
+
+	def _grads_are_finite(self) -> bool:
+		for param in self.student.parameters():
+			if param.grad is not None and not self._tensor_is_finite(param.grad):
+				return False
+		return True
+
+	def act(self, obs) -> torch.Tensor:
+		actions = self.student(obs, stochastic_output=True).detach()
+		privileged_actions = self.teacher(obs).detach()
+
+		if self.nan_guard_enabled and self.nan_guard_sanitize_rollout_actions:
+			if not self._tensor_is_finite(actions):
+				actions = self._zero_nonfinite(actions)
+				self._nan_guard_student_action_replacements += 1
+			if not self._tensor_is_finite(privileged_actions):
+				privileged_actions = self._zero_nonfinite(privileged_actions)
+				self._nan_guard_teacher_action_replacements += 1
+
+		self.transition.actions = actions
+		self.transition.privileged_actions = privileged_actions
+		self.transition.observations = obs
+		return self.transition.actions
+
+	def update(self) -> dict[str, float]:
+		self.num_updates += 1
+		mean_behavior_loss = 0.0
+		mean_grad_norm = 0.0
+		grad_step_cnt = 0
+		loss = torch.tensor(0.0, device=self.device)
+		cnt = 0
+		skipped_input_batches = 0
+		skipped_output_batches = 0
+		skipped_loss_batches = 0
+		skipped_grad_steps = 0
+
+		for _epoch in range(self.num_learning_epochs):
+			self.student.reset(hidden_state=self.last_hidden_states[0])
+			self.teacher.reset(hidden_state=self.last_hidden_states[1])
+			self.student.detach_hidden_state()
+
+			for obs, _, privileged_actions, dones in self.storage.generator():
+				should_skip = False
+				if self.nan_guard_enabled and (
+					not self._obs_is_finite(obs) or not self._tensor_is_finite(privileged_actions)
+				):
+					skipped_input_batches += 1
+					should_skip = True
+
+				if not should_skip:
+					actions = self.student(obs)
+					if self.nan_guard_enabled and not self._tensor_is_finite(actions):
+						skipped_output_batches += 1
+						should_skip = True
+
+				if not should_skip:
+					behavior_loss = self.loss_fn(actions, privileged_actions)
+					if self.nan_guard_enabled and not self._tensor_is_finite(behavior_loss):
+						skipped_loss_batches += 1
+						should_skip = True
+
+				if not should_skip:
+					loss = loss + behavior_loss
+					mean_behavior_loss += behavior_loss.item()
+					cnt += 1
+
+					if cnt % self.gradient_length == 0:
+						self.optimizer.zero_grad()
+						loss.backward()
+						if self.is_multi_gpu:
+							self.reduce_parameters()
+
+						if self.max_grad_norm:
+							grad_norm = nn.utils.clip_grad_norm_(
+								self.student.parameters(),
+								self.max_grad_norm,
+							)
+							grad_is_finite = self._tensor_is_finite(grad_norm) and self._grads_are_finite()
+						else:
+							grad_norm = torch.tensor(0.0, device=self.device)
+							grad_is_finite = self._grads_are_finite()
+
+						if self.nan_guard_enabled and not grad_is_finite:
+							skipped_grad_steps += 1
+							self.optimizer.zero_grad()
+						else:
+							self.optimizer.step()
+							mean_grad_norm += float(grad_norm.item())
+							grad_step_cnt += 1
+
+						self.student.detach_hidden_state()
+						loss = torch.tensor(0.0, device=self.device)
+
+				self.student.reset(dones.view(-1))
+				self.teacher.reset(dones.view(-1))
+				self.student.detach_hidden_state(dones.view(-1))
+
+		mean_behavior_loss /= max(cnt, 1)
+		self.storage.clear()
+		self.last_hidden_states = (self.student.get_hidden_state(), self.teacher.get_hidden_state())
+		self.student.detach_hidden_state()
+
+		skipped_batches = skipped_input_batches + skipped_output_batches + skipped_loss_batches
+		loss_dict = {
+			"behavior": mean_behavior_loss,
+			"nan_guard_finite_batches": float(cnt),
+			"nan_guard_skipped_batches": float(skipped_batches),
+			"nan_guard_skipped_input_batches": float(skipped_input_batches),
+			"nan_guard_skipped_output_batches": float(skipped_output_batches),
+			"nan_guard_skipped_loss_batches": float(skipped_loss_batches),
+			"nan_guard_skipped_grad_steps": float(skipped_grad_steps),
+			"nan_guard_student_action_replacements": float(self._nan_guard_student_action_replacements),
+			"nan_guard_teacher_action_replacements": float(self._nan_guard_teacher_action_replacements),
+		}
+		if grad_step_cnt > 0:
+			loss_dict["nan_guard_grad_norm"] = mean_grad_norm / grad_step_cnt
+
+		self._nan_guard_student_action_replacements = 0
+		self._nan_guard_teacher_action_replacements = 0
+		return loss_dict
+
+
 class DistillationMDN(Distillation):
 	"""MDN distillation variant with action or teacher-distribution losses.
 

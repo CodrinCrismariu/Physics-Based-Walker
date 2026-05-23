@@ -6,6 +6,7 @@ from hlip_clf_g1.rl.runner import (
   LIPDistilledOnPolicyRunner as HLIPDistilledOnPolicyRunner,
 )
 from hlip_clf_g1.rl.distillation_algorithm import (
+  DistillationNanGuard as DistillationNanGuard,
   DistillationMDN as DistillationMDN,
 )
 from hlip_clf_g1.rl.distillation_config import (

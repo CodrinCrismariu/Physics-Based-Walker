@@ -18,10 +18,13 @@ from mjlab.asset_zoo.robots import (
 
 from mjlab.envs import ManagerBasedRlEnvCfg
 from mjlab.envs.mdp.actions import JointPositionActionCfg
+from mjlab.managers.command_manager import CommandTerm
 from mjlab.managers.curriculum_manager import CurriculumTermCfg
 from mjlab.managers.event_manager import EventTermCfg, requires_model_fields
+from mjlab.managers.observation_manager import ObservationGroupCfg, ObservationTermCfg
 from mjlab.managers.reward_manager import RewardTermCfg
 from mjlab.managers.scene_entity_config import SceneEntityCfg
+from mjlab.managers.termination_manager import TerminationTermCfg
 from mjlab.sensor import (
   CameraSensorCfg,
   ContactMatch,
@@ -33,6 +36,10 @@ from mjlab.sensor import (
 from mjlab.terrains import BoxSteppingStonesTerrainCfg, BoxPyramidStairsTerrainCfg, BoxInvertedPyramidStairsTerrainCfg
 from mjlab.terrains.terrain_generator import TerrainGeneratorCfg
 from mjlab.terrains import TerrainImporterCfg
+from mjlab.tasks.velocity.config.g1.env_cfgs import (
+  unitree_g1_flat_env_cfg as _mjlab_unitree_g1_flat_velocity_env_cfg,
+)
+from mjlab.tasks.velocity.mdp import UniformVelocityCommand, UniformVelocityCommandCfg
 from hlip_clf_g1 import mdp
 from hlip_clf_g1.custom_terrains import TwoPlatformSteppingCorridorTerrainCfg
 from hlip_clf_g1.g1_no_hands import get_g1_no_hands_robot_cfg
@@ -86,6 +93,81 @@ class EpisodeRandomDelayedActuatorCfg(DelayedActuatorCfg):
   def build(self, entity, target_ids: list[int], target_names: list[str]):
     base_actuator = self.base_cfg.build(entity, target_ids, target_names)
     return EpisodeRandomDelayedActuator(self, base_actuator)
+
+
+class HlipStyleUniformVelocityCommand(UniformVelocityCommand):
+  """Velocity command GUI that tolerates fixed-zero command axes."""
+
+  def create_gui(self, name, server, get_env_idx) -> None:
+    from viser import Icon
+
+    ranges = self.cfg.ranges
+    axes = [
+      (0, "lin_vel_x", ranges.lin_vel_x),
+      (1, "lin_vel_y", ranges.lin_vel_y),
+      (2, "ang_vel_z", ranges.ang_vel_z),
+    ]
+    sliders = []
+    slider_axes = []
+
+    with server.gui.add_folder(name.capitalize()):
+      enabled = server.gui.add_checkbox("Enable", initial_value=False)
+
+      for axis_idx, label, value_range in axes:
+        max_val = max(abs(value_range[0]), abs(value_range[1]))
+        if max_val < 0.1:
+          continue
+
+        max_input = server.gui.add_slider(
+          f"Max {label}",
+          initial_value=max_val,
+          step=0.1,
+          min=0.1,
+          max=10.0,
+        )
+        slider = server.gui.add_slider(
+          label,
+          min=-max_val,
+          max=max_val,
+          step=0.05,
+          initial_value=0.0,
+        )
+
+        @max_input.on_update
+        def _(_ev, _s=slider, _m=max_input) -> None:
+          _s.min = -_m.value
+          _s.max = _m.value
+
+        sliders.append(slider)
+        slider_axes.append(axis_idx)
+
+      zero_btn = server.gui.add_button("Zero", icon=Icon.SQUARE_X)
+
+      @zero_btn.on_click
+      def _(_) -> None:
+        for slider in sliders:
+          slider.value = 0.0
+
+    self._joystick_enabled = enabled
+    self._joystick_sliders = sliders
+    self._joystick_slider_axes = slider_axes
+    self._joystick_get_env_idx = get_env_idx
+
+  def compute(self, dt: float) -> None:
+    CommandTerm.compute(self, dt)
+    if self._joystick_enabled is not None and self._joystick_enabled.value:
+      assert self._joystick_get_env_idx is not None
+      idx = self._joystick_get_env_idx()
+      for axis_idx, slider in zip(self._joystick_slider_axes, self._joystick_sliders):
+        self.vel_command_b[idx, axis_idx] = slider.value
+
+
+@dataclass(kw_only=True)
+class HlipStyleUniformVelocityCommandCfg(UniformVelocityCommandCfg):
+  """Uniform velocity command config with a zero-safe Viser GUI."""
+
+  def build(self, env):
+    return HlipStyleUniformVelocityCommand(self, env)
 
 
 def _apply_g1_motor_delay(
@@ -462,6 +544,289 @@ def _apply_distillation_task_overrides(
   else:
     _add_head_camera_dr_events(cfg)
 
+
+def _apply_hlip_style_velocity_robot_cfg(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Use the same G1 robot-side setup as the HLIP task."""
+  robot_cfg = get_g1_no_hands_robot_cfg()
+  _apply_g1_joint_pd_gains(robot_cfg)
+  _apply_g1_motor_delay(robot_cfg, physics_dt=cfg.sim.mujoco.timestep)
+  cfg.scene.entities = {"robot": robot_cfg}
+
+
+def _apply_hlip_style_velocity_domain_randomization(
+  cfg: ManagerBasedRlEnvCfg,
+) -> None:
+  """Match the reset-time domain randomization used by the HLIP task."""
+  cfg.events.pop("foot_friction", None)
+
+  cfg.events["reset_base"] = EventTermCfg(
+    func=mdp.reset_root_state_uniform,
+    mode="reset",
+    params={
+      "pose_range": {
+        "x": (-0.5, 0.5),
+        "y": (-0.5, 0.5),
+        "yaw": (-3.14, 3.14),
+        "z": (-0.02, -0.02),
+      },
+      "velocity_range": {},
+    },
+  )
+  cfg.events["reset_robot_joints"] = EventTermCfg(
+    func=mdp.reset_joints_by_offset,
+    mode="reset",
+    params={
+      "position_range": (0.0, 0.0),
+      "velocity_range": (0.0, 0.0),
+      "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+    },
+  )
+  cfg.events["push_robot"] = EventTermCfg(
+    func=mdp.push_by_setting_velocity,
+    mode="interval",
+    interval_range_s=(10.0, 15.0),
+    params={
+      "velocity_range": {
+        "x": (-1.0, 1.0),
+        "y": (-1.0, 1.0),
+        "roll": (-0.4, 0.4),
+        "pitch": (-0.4, 0.4),
+        "yaw": (-0.4, 0.4),
+      },
+    },
+  )
+  cfg.events["body_friction"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.geom_friction,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", geom_names=".*_collision"),
+      "operation": "abs",
+      "ranges": (0.5, 1.25),
+    },
+  )
+  cfg.events["link_mass"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.body_mass,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+      "operation": "scale",
+      "ranges": (0.9, 1.2),
+    },
+  )
+  cfg.events["base_mass"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.body_mass,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", body_names=("torso_link",)),
+      "operation": "add",
+      "ranges": (-1.0, 3.0),
+    },
+  )
+  cfg.events["encoder_bias"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.encoder_bias,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+      "bias_range": (-0.015, 0.015),
+    },
+  )
+  cfg.events["base_com"] = EventTermCfg(
+    mode="reset",
+    func=mdp.dr.body_ipos,
+    params={
+      "asset_cfg": SceneEntityCfg("robot", body_names=("torso_link",)),
+      "operation": "add",
+      "ranges": {
+        0: (-0.025, 0.025),
+        1: (-0.05, 0.05),
+        2: (-0.05, 0.05),
+      },
+    },
+  )
+
+
+def _apply_velocity_depth_observations(
+  cfg: ManagerBasedRlEnvCfg,
+  play: bool,
+) -> None:
+  """Use a velocity vector plus the HLIP head-depth image as actor input."""
+  velocity_vec_terms = dict(cfg.observations["actor"].terms)
+  critic_terms = dict(cfg.observations["critic"].terms)
+
+  head_depth_terms = {
+    "depth": ObservationTermCfg(
+      func=mdp.depth_camera_sparse_terrain_chw_data,
+      params={
+        "sensor_name": "head_camera",
+        "depth_noise_scale": 0.1,
+        "pixel_dropout_prob": 0.05,
+      },
+      clip=(0.0, 10.0),
+      delay_hold_prob=1,
+      delay_min_lag=2,
+      delay_max_lag=4,
+    ),
+  }
+
+  cfg.observations = {
+    "velocity_vec": ObservationGroupCfg(
+      terms=velocity_vec_terms,
+      concatenate_terms=True,
+      enable_corruption=not play,
+      history_length=5,
+    ),
+    "head_camera_depth": ObservationGroupCfg(
+      terms=head_depth_terms,
+      concatenate_terms=True,
+      enable_corruption=not play,
+      history_length=0,
+    ),
+    "critic": ObservationGroupCfg(
+      terms=critic_terms,
+      concatenate_terms=True,
+      enable_corruption=False,
+      history_length=5,
+    ),
+  }
+
+
+def _add_velocity_termination_penalty(cfg: ManagerBasedRlEnvCfg) -> None:
+  """Add an explicit penalty for non-timeout terminations such as falling."""
+  cfg.rewards["termination_penalty"] = RewardTermCfg(
+    func=mdp.is_terminated,
+    weight=-250.0,
+  )
+
+
+def _apply_hlip_style_velocity_command_gui(
+  cfg: ManagerBasedRlEnvCfg,
+) -> None:
+  """Use the local velocity command wrapper without changing command ranges."""
+  command_cfg = cfg.commands["twist"]
+  assert isinstance(command_cfg, UniformVelocityCommandCfg)
+  if not isinstance(command_cfg, HlipStyleUniformVelocityCommandCfg):
+    command_cfg = HlipStyleUniformVelocityCommandCfg(
+      entity_name=command_cfg.entity_name,
+      resampling_time_range=command_cfg.resampling_time_range,
+      debug_vis=command_cfg.debug_vis,
+      heading_command=command_cfg.heading_command,
+      heading_control_stiffness=command_cfg.heading_control_stiffness,
+      rel_standing_envs=command_cfg.rel_standing_envs,
+      rel_heading_envs=command_cfg.rel_heading_envs,
+      init_velocity_prob=command_cfg.init_velocity_prob,
+      ranges=replace(command_cfg.ranges),
+      viz=replace(command_cfg.viz),
+    )
+    cfg.commands["twist"] = command_cfg
+
+
+def _apply_two_platform_corridor_velocity_command_defaults(
+  cfg: ManagerBasedRlEnvCfg,
+) -> None:
+  """Train the corridor policy on forward commands aligned with the corridor."""
+  _apply_hlip_style_velocity_command_gui(cfg)
+
+  command_cfg = cfg.commands["twist"]
+  assert isinstance(command_cfg, UniformVelocityCommandCfg)
+  command_cfg.rel_standing_envs = 0.0
+  command_cfg.rel_heading_envs = 1.0
+  command_cfg.heading_command = True
+  command_cfg.heading_control_stiffness = 1.8
+  command_cfg.ranges.lin_vel_x = (0.0, 0.6)
+  command_cfg.ranges.lin_vel_y = (0.0, 0.0)
+  command_cfg.ranges.ang_vel_z = (-0.8, 0.8)
+  command_cfg.ranges.heading = (0.0, 0.0)
+
+  # Keep the corridor command envelope fixed during finetuning.
+  cfg.curriculum.pop("command_vel", None)
+
+
+def _apply_two_platform_corridor_velocity_command_overrides(
+  cfg: ManagerBasedRlEnvCfg,
+) -> None:
+  """Keep velocity commands aligned with the +x two-platform corridor."""
+  _apply_two_platform_corridor_velocity_command_defaults(cfg)
+
+  command_cfg = cfg.commands["twist"]
+  assert isinstance(command_cfg, UniformVelocityCommandCfg)
+  command_cfg.viz.z_offset = 1.15
+
+
+def _apply_hlip_style_velocity_corridor_terminations(
+  cfg: ManagerBasedRlEnvCfg,
+) -> None:
+  """Use HLIP physical safety terminations for the velocity corridor task."""
+  cfg.terminations = {
+    "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
+    "fell_over": TerminationTermCfg(
+      func=mdp.bad_orientation,
+      params={"limit_angle": math.radians(50.0)},
+    ),
+    "pelvis_too_low": TerminationTermCfg(
+      func=mdp.pelvis_too_low,
+      params={
+        "minimum_distance": 0.3,
+        "pelvis_body_name": "pelvis",
+        "foot_body_name": r".*_ankle_roll_link",
+      },
+    ),
+    "foot_height_too_low": TerminationTermCfg(
+      func=mdp.foot_height_too_low,
+      params={
+        "minimum_height": -0.05,
+        "foot_body_name": r".*_ankle_roll_link",
+      },
+    ),
+  }
+
+
+def _make_unitree_g1_hlip_style_velocity_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Create the common flat G1 velocity task with HLIP robot/camera/DR setup."""
+  cfg = _mjlab_unitree_g1_flat_velocity_env_cfg(play=play)
+
+  _apply_hlip_style_velocity_command_gui(cfg)
+  _add_head_camera_sensor(cfg)
+  _apply_velocity_depth_observations(cfg, play=play)
+
+  if play:
+    cfg.events.pop("push_robot", None)
+  else:
+    _add_head_camera_dr_events(cfg)
+
+  return cfg
+
+
+def unitree_g1_hlip_style_velocity_flat_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 flat velocity task with the HLIP camera and randomization setup."""
+  cfg = _make_unitree_g1_hlip_style_velocity_env_cfg(play=play)
+  _add_velocity_termination_penalty(cfg)
+  return cfg
+
+
+def unitree_g1_hlip_style_velocity_two_platform_stepping_corridor_env_cfg(
+  play: bool = False,
+) -> ManagerBasedRlEnvCfg:
+  """Unitree G1 velocity task on the HLIP two-platform stepping corridor."""
+  cfg = _make_unitree_g1_hlip_style_velocity_env_cfg(play=play)
+
+  _configure_generated_terrain(
+    cfg,
+    terrain_cfg=TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG,
+    max_init_terrain_level=0,
+    curriculum=False,
+  )
+  _apply_complex_terrain_contact_limits(cfg)
+  _apply_two_platform_corridor_reset_overrides(cfg)
+  _apply_two_platform_corridor_velocity_command_overrides(cfg)
+  _apply_hlip_style_velocity_corridor_terminations(cfg)
+
+  return cfg
+
+
 def unitree_g1_hlip_env_cfg(play: bool = False) -> ManagerBasedRlEnvCfg:
   """Create Unitree G1 flat-terrain HLIP + CLF walking configuration."""
   cfg = make_hlip_env_cfg()
@@ -627,8 +992,8 @@ TWO_PLATFORM_STEPPING_CORRIDOR_TERRAINS_CFG = TerrainGeneratorCfg(
       platform_height=0.2,
       floor_depth=0.1,
       border_width=0.2,
-      platform_length_ratio=0.18,
-      platform_width_ratio=0.85,
+      platform_length_ratio=0.1,
+      platform_width_ratio=0.25,
       platform_edge_margin_ratio=0.03,
       corridor_width_ratio=0.4,
       stone_length_range=(0.3, 0.35),#(0.29, 0.35),

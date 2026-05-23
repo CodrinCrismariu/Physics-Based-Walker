@@ -112,6 +112,10 @@ class RslRlDistillationAlgorithmCfg:
   """The optimizer to use for the student policy."""
   loss_type: Literal["mse", "huber"] = "huber"
   """The loss type to use for the student policy."""
+  nan_guard_enabled: bool = True
+  """Whether guarded classic distillation skips non-finite losses/gradients."""
+  nan_guard_sanitize_rollout_actions: bool = True
+  """Whether guarded classic distillation zeros non-finite rollout actions."""
   mdn_loss_type: Literal["action_nll", "teacher_distribution"] = "action_nll"
   """MDN objective: fit stored teacher actions or the teacher action distribution."""
   mdn_teacher_num_samples: int = 1

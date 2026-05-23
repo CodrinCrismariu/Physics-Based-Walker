@@ -1,4 +1,5 @@
 from mjlab.tasks.registry import register_mjlab_task
+from mjlab.tasks.velocity.rl import VelocityOnPolicyRunner
 from hlip_clf_g1.viewer_depth_overlay import install_viser_depth_observation_overlay
 from hlip_clf_g1.rl import (
   HLIPOnPolicyRunner,
@@ -14,6 +15,8 @@ from hlip_clf_g1.env_cfgs import (
   unitree_g1_hlip_distillation_two_platform_stepping_corridor_env_cfg,
   unitree_g1_distillation_hlip_stairs_env_cfg,
   unitree_g1_hlip_distillation_env_cfg,
+  unitree_g1_hlip_style_velocity_flat_env_cfg,
+  unitree_g1_hlip_style_velocity_two_platform_stepping_corridor_env_cfg,
 )
 from hlip_clf_g1.rl_cfg import (
   unitree_g1_hlip_ppo_runner_cfg,
@@ -23,6 +26,8 @@ from hlip_clf_g1.rl_cfg import (
   unitree_g1_hlip_distillation_mdn_runner_cfg,
   unitree_g1_hlip_distillation_cnn_mdn_runner_cfg,
   unitree_g1_hlip_distillation_transformer_mlp_runner_cfg,
+  unitree_g1_hlip_style_velocity_flat_ppo_runner_cfg,
+  unitree_g1_hlip_style_velocity_corridor_ppo_runner_cfg,
 )
 
 install_viser_depth_observation_overlay()
@@ -65,6 +70,22 @@ register_mjlab_task(
   play_env_cfg=unitree_g1_hlip_two_platform_stepping_corridor_env_cfg(play=True),
   rl_cfg=unitree_g1_hlip_ppo_runner_cfg(),
   runner_cls=HLIPOnPolicyRunner,
+)
+
+register_mjlab_task(
+  task_id="Mjlab-HLIP-Style-Velocity-Flat-Unitree-G1",
+  env_cfg=unitree_g1_hlip_style_velocity_flat_env_cfg(),
+  play_env_cfg=unitree_g1_hlip_style_velocity_flat_env_cfg(play=True),
+  rl_cfg=unitree_g1_hlip_style_velocity_flat_ppo_runner_cfg(),
+  runner_cls=VelocityOnPolicyRunner,
+)
+
+register_mjlab_task(
+  task_id="Mjlab-HLIP-Style-Velocity-Two-Platform-Stepping-Corridor-Unitree-G1",
+  env_cfg=unitree_g1_hlip_style_velocity_two_platform_stepping_corridor_env_cfg(),
+  play_env_cfg=unitree_g1_hlip_style_velocity_two_platform_stepping_corridor_env_cfg(play=True),
+  rl_cfg=unitree_g1_hlip_style_velocity_corridor_ppo_runner_cfg(),
+  runner_cls=VelocityOnPolicyRunner,
 )
 
 register_mjlab_task(

@@ -22,6 +22,11 @@ _DISTILLATION_STUDENT_OBS_GROUPS = (
   "head_camera_depth",
 )
 _DISTILLATION_TEACHER_OBS_GROUPS = ("teacher",)
+_VELOCITY_DEPTH_ACTOR_OBS_GROUPS = (
+  "velocity_vec",
+  "head_camera_depth",
+)
+_VELOCITY_DEPTH_CRITIC_OBS_GROUPS = ("critic",)
 
 
 def _depth_cnn_cfg() -> dict[str, object]:
@@ -123,6 +128,7 @@ def _make_teacher_model_cfg(
 
 def _make_distillation_algorithm_cfg() -> RslRlDistillationAlgorithmCfg:
   return RslRlDistillationAlgorithmCfg(
+    class_name="hlip_clf_g1.rl.distillation_algorithm:DistillationNanGuard",
     num_learning_epochs=10,
     learning_rate=5 * 1.0e-4,
     gradient_length=2,
@@ -190,6 +196,76 @@ def unitree_g1_hlip_random_step_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
   cfg = unitree_g1_hlip_ppo_runner_cfg()
   cfg.experiment_name = "g1_hlip_clf_random_step"
   return cfg
+
+
+def _make_unitree_g1_velocity_depth_ppo_runner_cfg(
+  *,
+  experiment_name: str,
+  learning_rate: float,
+  save_interval: int,
+  max_iterations: int,
+) -> RslRlOnPolicyRunnerCfg:
+  """Create PPO config for the HLIP-style depth-camera velocity tasks."""
+  return RslRlOnPolicyRunnerCfg(
+    obs_groups={
+      "actor": _VELOCITY_DEPTH_ACTOR_OBS_GROUPS,
+      "critic": _VELOCITY_DEPTH_CRITIC_OBS_GROUPS,
+    },
+    actor=RslRlModelCfg(
+      class_name="hlip_clf_g1.rl.models.cnn_transformer_model:CNNTransformerModel",
+      init_noise_std=1.0,
+      obs_normalization=True,
+      hidden_dims=(512, 256, 128),
+      activation="elu",
+      stochastic=True,
+      cnn_cfg={"head_camera_depth": _depth_cnn_cfg()},
+    ),
+    critic=RslRlModelCfg(
+      init_noise_std=1.0,
+      obs_normalization=True,
+      hidden_dims=(512, 256, 128),
+      activation="elu",
+      stochastic=False,
+    ),
+    algorithm=RslRlPpoAlgorithmCfg(
+      value_loss_coef=1.0,
+      use_clipped_value_loss=True,
+      clip_param=0.2,
+      entropy_coef=0.01,
+      num_learning_epochs=5,
+      num_mini_batches=4,
+      learning_rate=learning_rate,
+      schedule="adaptive",
+      gamma=0.99,
+      lam=0.95,
+      desired_kl=0.01,
+      max_grad_norm=1.0,
+    ),
+    experiment_name=experiment_name,
+    save_interval=save_interval,
+    num_steps_per_env=24,
+    max_iterations=max_iterations,
+  )
+
+
+def unitree_g1_hlip_style_velocity_flat_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+  """PPO config for flat pretraining of the HLIP-style G1 velocity task."""
+  return _make_unitree_g1_velocity_depth_ppo_runner_cfg(
+    experiment_name="g1_hlip_style_velocity_flat",
+    learning_rate=1.0e-3,
+    save_interval=100,
+    max_iterations=30_000,
+  )
+
+
+def unitree_g1_hlip_style_velocity_corridor_ppo_runner_cfg() -> RslRlOnPolicyRunnerCfg:
+  """PPO config for corridor finetuning from the flat velocity policy."""
+  return _make_unitree_g1_velocity_depth_ppo_runner_cfg(
+    experiment_name="g1_hlip_style_velocity_two_platform_corridor",
+    learning_rate=0.50e-4,
+    save_interval=100,
+    max_iterations=6_000,
+  )
 
 
 def unitree_g1_hlip_corridor_ppo_from_distillation_mdn_runner_cfg() -> RslRlOnPolicyRunnerCfg:
